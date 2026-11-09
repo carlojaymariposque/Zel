@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/",
-      "destination": "/newzel.html"
+      "destination": "/index.html"
     }
   ]
 }

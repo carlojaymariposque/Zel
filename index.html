@@ -155,16 +155,17 @@ html
     <section id="view-shop" class="space-y-8">
       
       <!-- HERO CYBER BANNER -->
-      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyber-card via-cyber-dark to-cyber-black border border-cyber-border p-6 md:p-10 shadow-glass">
+      <div class="hero-banner relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyber-card via-cyber-dark to-cyber-black border border-cyber-border p-6 md:p-10 shadow-glass">
+        <div class="hero-galaxy-backdrop" aria-hidden="true"></div>
         <div class="absolute -right-20 -top-20 w-80 h-80 bg-cyber-red/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="max-w-2xl space-y-4 relative z-10">
+        <div class="hero-copy max-w-2xl space-y-4 relative z-10">
           <div class="inline-flex items-center space-x-2 bg-cyber-red/10 border border-cyber-red/30 px-3 py-1 rounded-full text-xs font-mono text-cyber-red uppercase tracking-wider">
             <i class="fa-solid fa-bolt-lightning animate-bounce"></i> Dual Trade &amp; Purchase Protocol
           </div>
           <h1 class="font-mono text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
             UPGRADE TECH. <br><span class="glitch-text text-cyber-red neon-text" data-text="TRADE HARDWARE.">TRADE HARDWARE.</span> ZERO DELAY.
           </h1>
-          <p class="text-gray-400 text-sm md:text-base leading-relaxed">
+          <p class="hero-description text-gray-400 text-sm md:text-base leading-relaxed">
             Buy brand-new flagship electronics or swap your current smartphone, laptop, console, or GPU with our audited trade-in system. Offset purchases with your old tech or barter directly.
           </p>
           <div class="pt-2 flex flex-wrap gap-3">
@@ -178,16 +179,6 @@ html
         </div>
 
         <div class="hero-tech-art" aria-hidden="true">
-          <div class="hero-galaxy">
-            <span class="hero-star hero-star-one"></span>
-            <span class="hero-star hero-star-two"></span>
-            <span class="hero-star hero-star-three"></span>
-            <span class="hero-star hero-star-four"></span>
-            <span class="hero-star hero-star-five"></span>
-            <span class="hero-star hero-star-six"></span>
-            <span class="hero-star hero-star-seven"></span>
-            <span class="hero-star hero-star-eight"></span>
-          </div>
           <div class="hero-orbit hero-orbit-one"></div>
           <div class="hero-orbit hero-orbit-two"></div>
           <div class="hero-orbit hero-orbit-three"></div>
@@ -223,7 +214,7 @@ html
         </div>
 
         <!-- Quick Stats Strip -->
-        <div class="mt-8 pt-6 border-t border-cyber-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-mono">
+        <div class="relative z-10 mt-8 pt-6 border-t border-cyber-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-mono">
           <div>
             <div class="text-xl md:text-2xl font-black text-white">4,820+</div>
             <div class="text-[11px] text-cyber-muted uppercase">Devices Audited</div>

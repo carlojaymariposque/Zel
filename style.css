@@ -209,8 +209,19 @@
       .loader-glitch::after,
       .loader-progress span,
       .page-loader::before,
-      .page-loader::after {
+      .page-loader::after,
+      .hero-galaxy-backdrop::before,
+      .hero-galaxy-backdrop::after,
+      #view-dashboard::before,
+      #view-dashboard::after {
         animation: none !important;
+      }
+      .hero-galaxy-backdrop {
+        transition: none;
+      }
+      #view-dashboard::before,
+      #view-dashboard::after {
+        transition: none;
       }
     }
 
@@ -380,6 +391,55 @@
       to { left: 150%; }
     }
 
+    #view-dashboard {
+      position: relative;
+      isolation: isolate;
+    }
+    #view-dashboard::before,
+    #view-dashboard::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      inset: -1.5rem -1rem;
+      pointer-events: none;
+      border-radius: 1.5rem;
+    }
+    #view-dashboard::before {
+      opacity: .72;
+      background-image:
+        radial-gradient(1px 1px at 8% 12%, rgba(255, 255, 255, .8) 50%, transparent 100%),
+        radial-gradient(2px 2px at 21% 68%, rgba(255, 193, 214, .72) 50%, transparent 100%),
+        radial-gradient(1px 1px at 39% 31%, rgba(255, 255, 255, .8) 50%, transparent 100%),
+        radial-gradient(1px 1px at 57% 82%, rgba(199, 183, 255, .78) 50%, transparent 100%),
+        radial-gradient(2px 2px at 75% 19%, rgba(255, 255, 255, .72) 50%, transparent 100%),
+        radial-gradient(1px 1px at 91% 55%, rgba(255, 179, 205, .8) 50%, transparent 100%),
+        radial-gradient(1px 1px at 68% 47%, rgba(255, 255, 255, .65) 50%, transparent 100%),
+        radial-gradient(1px 1px at 30% 92%, rgba(255, 255, 255, .62) 50%, transparent 100%);
+      background-size: 130% 130%;
+      animation: dashboard-stars-drift 32s ease-in-out infinite alternate;
+      transition: opacity 400ms ease;
+    }
+    #view-dashboard::after {
+      inset: 3% 12%;
+      opacity: .58;
+      background:
+        radial-gradient(ellipse at 50% 48%, rgba(100, 54, 158, .14), transparent 58%),
+        conic-gradient(from 30deg at 50% 50%, transparent 0deg, rgba(255, 30, 90, .12) 42deg, transparent 92deg, rgba(110, 93, 255, .15) 150deg, transparent 210deg, rgba(255, 94, 156, .1) 282deg, transparent 360deg);
+      filter: blur(18px);
+      transform: perspective(650px) rotateX(62deg) rotateZ(-12deg);
+      animation: dashboard-nebula-turn 70s linear infinite;
+      transition: opacity 400ms ease;
+    }
+    #view-dashboard:hover::before,
+    #view-dashboard:hover::after {
+      opacity: .9;
+    }
+    @keyframes dashboard-stars-drift {
+      to { background-position: 12px -18px, -16px 14px, 20px 10px, -12px -16px, 18px 12px, -14px 18px, 9px -12px, -18px 8px; }
+    }
+    @keyframes dashboard-nebula-turn {
+      to { rotate: 0 0 1 360deg; }
+    }
     #view-dashboard > div:first-child {
       min-width: 0;
     }
@@ -408,6 +468,74 @@
       overflow-wrap: anywhere;
     }
 
+    .hero-banner {
+      isolation: isolate;
+    }
+    @media (min-width: 640px) and (max-width: 1199px) {
+      .hero-copy {
+        width: calc(100% - 260px);
+      }
+      .hero-copy h1 {
+        font-size: clamp(1.9rem, 4vw, 2.4rem);
+        line-height: 1.08;
+      }
+    }
+    .hero-description {
+      max-width: 26rem;
+    }
+    .hero-galaxy-backdrop {
+      position: absolute;
+      z-index: 0;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: .8;
+      transition: opacity 500ms ease;
+    }
+    .hero-galaxy-backdrop::before,
+    .hero-galaxy-backdrop::after {
+      content: "";
+      position: absolute;
+      inset: -24%;
+      border-radius: 50%;
+    }
+    .hero-galaxy-backdrop::before {
+      background-image:
+        radial-gradient(1.5px 1.5px at 12% 18%, rgba(255, 255, 255, .9) 50%, transparent 100%),
+        radial-gradient(2px 2px at 27% 74%, rgba(255, 171, 210, .9) 50%, transparent 100%),
+        radial-gradient(1px 1px at 42% 31%, rgba(255, 255, 255, .95) 50%, transparent 100%),
+        radial-gradient(2px 2px at 58% 83%, rgba(194, 179, 255, .9) 50%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 73% 22%, rgba(255, 255, 255, .9) 50%, transparent 100%),
+        radial-gradient(2px 2px at 88% 57%, rgba(255, 155, 194, .9) 50%, transparent 100%),
+        radial-gradient(1px 1px at 66% 48%, rgba(255, 255, 255, .9) 50%, transparent 100%),
+        radial-gradient(1px 1px at 33% 92%, rgba(255, 255, 255, .8) 50%, transparent 100%);
+      background-size: 100% 100%;
+      transform: perspective(700px) rotateX(52deg) rotateZ(-12deg) scale(1.08);
+      animation: hero-galaxy-stars 18s ease-in-out infinite alternate;
+    }
+    .hero-galaxy-backdrop::after {
+      inset: 7% 8% -18% 22%;
+      background:
+        radial-gradient(ellipse at 68% 48%, rgba(255, 255, 255, .72), rgba(255, 119, 190, .32) 3%, transparent 15%),
+        conic-gradient(from 25deg at 68% 48%, transparent 0deg, rgba(255, 42, 105, .2) 32deg, transparent 76deg, rgba(133, 95, 255, .2) 132deg, transparent 188deg, rgba(255, 113, 166, .16) 245deg, transparent 310deg, rgba(111, 130, 255, .18) 344deg, transparent 360deg),
+        radial-gradient(ellipse at 68% 48%, transparent 15%, rgba(161, 73, 190, .16) 42%, rgba(255, 45, 93, .12) 54%, transparent 72%);
+      filter: blur(7px);
+      transform: perspective(700px) rotateX(62deg) rotateZ(-18deg);
+      transform-origin: 68% 48%;
+      animation: hero-galaxy-swirl 54s linear infinite;
+    }
+    .hero-banner:hover .hero-galaxy-backdrop {
+      opacity: 1;
+    }
+    @keyframes hero-galaxy-stars {
+      to {
+        background-position: 14px -12px, -12px 16px, 18px 10px, -10px -14px, 12px 18px, -16px -10px, 9px -16px, -14px 12px;
+        transform: perspective(700px) rotateX(58deg) rotateZ(-8deg) scale(1.12);
+      }
+    }
+    @keyframes hero-galaxy-swirl {
+      to { transform: perspective(700px) rotateX(62deg) rotateZ(342deg); }
+    }
     .hero-tech-art {
       position: absolute;
       top: 50%;
@@ -429,61 +557,6 @@
       background: rgba(255, 30, 68, .15);
       filter: blur(40px);
       animation: hero-core-pulse 3.2s ease-in-out infinite;
-    }
-    .hero-galaxy {
-      position: absolute;
-      z-index: 0;
-      inset: -4% -10%;
-      transform-style: preserve-3d;
-      transform: rotateX(68deg) rotateZ(-24deg);
-      animation: hero-galaxy-spin 48s linear infinite;
-    }
-    .hero-galaxy::before,
-    .hero-galaxy::after {
-      content: "";
-      position: absolute;
-      inset: 12%;
-      border-radius: 50%;
-      pointer-events: none;
-    }
-    .hero-galaxy::before {
-      background:
-        radial-gradient(ellipse at center, rgba(255, 255, 255, .9) 0 1%, rgba(255, 145, 182, .7) 3%, transparent 13%),
-        conic-gradient(from 25deg at 50% 50%, transparent 0deg, rgba(255, 30, 100, .18) 32deg, transparent 76deg, rgba(130, 90, 255, .2) 132deg, transparent 188deg, rgba(255, 105, 150, .16) 245deg, transparent 310deg, rgba(111, 130, 255, .16) 344deg, transparent 360deg),
-        radial-gradient(ellipse, transparent 20%, rgba(175, 70, 180, .2) 42%, rgba(255, 45, 93, .12) 54%, transparent 72%);
-      filter: blur(5px);
-      box-shadow: 0 0 35px rgba(139, 73, 255, .2);
-    }
-    .hero-galaxy::after {
-      inset: 22% 5%;
-      border: 1px solid rgba(208, 164, 255, .24);
-      box-shadow: 0 0 18px rgba(166, 112, 255, .24), inset 0 0 20px rgba(255, 91, 156, .12);
-      transform: translateZ(12px);
-    }
-    .hero-star {
-      position: absolute;
-      z-index: 1;
-      width: 3px;
-      height: 3px;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 0 7px 2px rgba(194, 169, 255, .75);
-      animation: hero-star-twinkle 2.8s ease-in-out infinite;
-    }
-    .hero-star-one { top: 17%; left: 18%; transform: translateZ(25px); }
-    .hero-star-two { top: 28%; right: 12%; width: 2px; height: 2px; transform: translateZ(42px); animation-delay: .4s; }
-    .hero-star-three { top: 72%; left: 12%; transform: translateZ(36px); animation-delay: 1s; }
-    .hero-star-four { top: 82%; right: 22%; width: 2px; height: 2px; transform: translateZ(18px); animation-delay: 1.6s; }
-    .hero-star-five { top: 8%; right: 37%; width: 2px; height: 2px; transform: translateZ(50px); animation-delay: .8s; }
-    .hero-star-six { bottom: 12%; left: 42%; transform: translateZ(30px); animation-delay: 1.3s; }
-    .hero-star-seven { top: 48%; left: 4%; width: 2px; height: 2px; transform: translateZ(44px); animation-delay: 2s; }
-    .hero-star-eight { top: 52%; right: 4%; transform: translateZ(22px); animation-delay: .6s; }
-    @keyframes hero-galaxy-spin {
-      to { rotate: 0 0 1 360deg; }
-    }
-    @keyframes hero-star-twinkle {
-      0%, 100% { opacity: .38; scale: .7; }
-      50% { opacity: 1; scale: 1.35; }
     }
     .hero-orbit {
       position: absolute;
@@ -790,7 +863,59 @@
     #view-dashboard .dashboard-tab-enter > :nth-child(3) { animation-delay: 140ms; }
     #view-dashboard .dashboard-tab-enter > :nth-child(4) { animation-delay: 210ms; }
 
+    @media (min-width: 640px) and (max-width: 1199px) {
+      .hero-tech-art {
+        width: 220px;
+        height: 220px;
+        right: 1%;
+      }
+    }
+
+    @media (min-width: 640px) and (max-width: 767px) {
+      .hero-copy {
+        width: calc(100% - 190px);
+      }
+      .hero-copy h1 {
+        font-size: clamp(1.75rem, 4.4vw, 2rem);
+      }
+      .hero-description {
+        max-width: 100%;
+      }
+      .hero-tech-art {
+        width: 190px;
+        height: 190px;
+        right: 0;
+        top: 31%;
+        opacity: .28;
+      }
+    }
+
     @media (max-width: 639px) {
+      .hero-copy {
+        width: 100%;
+      }
+      .hero-copy h1 {
+        font-size: clamp(1.55rem, 7.5vw, 2.1rem);
+        line-height: 1.08;
+      }
+      .hero-description {
+        max-width: 100%;
+      }
+      .hero-tech-art {
+        position: relative;
+        top: auto;
+        right: auto;
+        width: 100%;
+        height: clamp(170px, 48vw, 210px);
+        margin-top: .75rem;
+        transform: none;
+        opacity: .9;
+      }
+      .hero-banner > .grid {
+        gap: .75rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+      }
       #statusTicker {
         flex-wrap: wrap;
         gap: .5rem;
@@ -825,13 +950,6 @@
       #view-tradeHub h3 {
         font-size: 1rem;
         line-height: 1.4;
-      }
-      .hero-tech-art {
-        right: -25px;
-        top: 31%;
-        width: 190px;
-        height: 190px;
-        opacity: .28;
       }
       #view-shop > div:first-child > div:first-of-type {
         text-shadow: 0 1px 5px #070709;

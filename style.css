@@ -72,6 +72,13 @@
       border-radius: 50%;
       filter: drop-shadow(0 0 7px rgba(255, 30, 68, .38));
     }
+    .zel-brand {
+      flex: 0 0 auto;
+    }
+    .header-actions {
+      flex: 0 0 auto;
+      gap: .75rem;
+    }
     .zel-footer-logo {
       width: 3.25rem;
       height: 3.25rem;
@@ -1069,16 +1076,21 @@
         font-size: .95rem;
         letter-spacing: .08em;
       }
-      header .flex.min-w-0.items-center.space-x-2 {
+      .zel-brand {
+        flex: 0 0 auto;
         gap: .35rem;
       }
       .zel-brand-logo {
-        width: 2.7rem;
-        height: 2.7rem;
+        width: 2.4rem;
+        height: 2.4rem;
       }
-      .zel-brand > div > span:last-child {
-        font-size: 7px;
-        letter-spacing: .04em;
+      .header-actions {
+        gap: .5rem;
+      }
+    }
+    @media (min-width: 1536px) {
+      .header-actions {
+        gap: .5rem;
       }
     }
 

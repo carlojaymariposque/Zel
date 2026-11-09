@@ -72,31 +72,30 @@
         <img src="zel-logo.png" alt="ZEL — Zyber Electronics List" class="zel-brand-logo">
         <div class="min-w-0">
           <span class="font-display whitespace-nowrap text-lg sm:text-2xl font-black tracking-widest text-white">ZEL</span>
-          <span class="block whitespace-nowrap text-[8px] sm:text-[9px] font-mono tracking-widest text-cyber-muted uppercase -mt-1">ZYBER ELECTRONICS LIST</span>
         </div>
       </div>
 
       <!-- Navigation Tabs -->
-      <nav class="hidden xl:flex items-center space-x-1 font-mono text-sm tracking-wide">
-        <button onclick="switchView('shop')" id="nav-shop" class="nav-link px-4 py-2 rounded-md text-cyber-red bg-cyber-red/10 border border-cyber-red/30 transition">
+      <nav class="hidden 2xl:flex items-center space-x-0 font-mono text-sm tracking-wide">
+        <button onclick="switchView('shop')" id="nav-shop" class="nav-link px-2 py-2 rounded-md text-cyber-red bg-cyber-red/10 border border-cyber-red/30 transition">
           <i class="fa-solid fa-boxes-stacked mr-1.5"></i> BUY STORE
         </button>
-        <button onclick="switchView('tradeHub')" id="nav-tradeHub" class="nav-link px-4 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
+        <button onclick="switchView('tradeHub')" id="nav-tradeHub" class="nav-link px-2 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
           <i class="fa-solid fa-arrow-right-arrow-left mr-1.5 text-cyber-red"></i> TRADE HUB
         </button>
-        <button onclick="openTradeProposalModal()" class="nav-link px-4 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
+        <button onclick="openTradeProposalModal()" class="nav-link px-2 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
           <i class="fa-solid fa-calculator mr-1.5 text-cyber-red"></i> VALUE CALCULATOR
         </button>
-        <button onclick="switchView('sellPortal')" id="nav-sellPortal" class="nav-link px-4 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
+        <button onclick="switchView('sellPortal')" id="nav-sellPortal" class="nav-link px-2 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
           <i class="fa-solid fa-plus-circle mr-1.5 text-cyber-red"></i> LIST DEVICE
         </button>
-        <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-link px-4 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
+        <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-link px-2 py-2 rounded-md text-gray-300 hover:text-white hover:bg-cyber-card transition">
           <i class="fa-solid fa-chart-line mr-1.5 text-cyber-red"></i> MY TRADES &amp; ORDERS
         </button>
       </nav>
 
       <!-- Search & Action Buttons -->
-      <div class="flex items-center space-x-3">
+      <div class="header-actions flex items-center">
         <!-- Global Search Bar -->
         <div class="relative hidden md:block w-48 xl:w-64">
           <input type="text" id="globalSearch" placeholder="Search devices, GPUs, consoles..." 
@@ -123,7 +122,7 @@
         </button>
 
         <!-- Mobile Menu Toggle -->
-        <button onclick="toggleMobileMenu()" class="xl:hidden p-2 rounded-lg bg-cyber-card text-white border border-cyber-border">
+        <button onclick="toggleMobileMenu()" class="2xl:hidden p-2 rounded-lg bg-cyber-card text-white border border-cyber-border">
           <i class="fa-solid fa-bars"></i>
         </button>
       </div>
@@ -131,7 +130,7 @@
     </div>
 
     <!-- Mobile Dropdown Nav -->
-    <div id="mobileMenu" class="hidden xl:hidden bg-cyber-dark border-b border-cyber-border px-4 py-3 space-y-2 font-mono text-sm">
+    <div id="mobileMenu" class="hidden 2xl:hidden bg-cyber-dark border-b border-cyber-border px-4 py-3 space-y-2 font-mono text-sm">
       <input type="text" placeholder="Search tech..." class="w-full bg-cyber-card border border-cyber-border rounded px-3 py-2 text-xs mb-2" oninput="handleSearch(this.value)">
       <div class="grid grid-cols-2 gap-2">
         <button onclick="switchView('shop'); toggleMobileMenu();" class="p-2 text-left bg-cyber-card rounded hover:bg-cyber-red/20 text-xs"><i class="fa-solid fa-boxes-stacked text-cyber-red mr-2"></i>Store</button>

@@ -423,14 +423,71 @@
     .hero-tech-art::before {
       content: "";
       position: absolute;
+      z-index: 0;
       inset: 18%;
       border-radius: 50%;
       background: rgba(255, 30, 68, .15);
       filter: blur(40px);
       animation: hero-core-pulse 3.2s ease-in-out infinite;
     }
+    .hero-galaxy {
+      position: absolute;
+      z-index: 0;
+      inset: -4% -10%;
+      transform-style: preserve-3d;
+      transform: rotateX(68deg) rotateZ(-24deg);
+      animation: hero-galaxy-spin 48s linear infinite;
+    }
+    .hero-galaxy::before,
+    .hero-galaxy::after {
+      content: "";
+      position: absolute;
+      inset: 12%;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .hero-galaxy::before {
+      background:
+        radial-gradient(ellipse at center, rgba(255, 255, 255, .9) 0 1%, rgba(255, 145, 182, .7) 3%, transparent 13%),
+        conic-gradient(from 25deg at 50% 50%, transparent 0deg, rgba(255, 30, 100, .18) 32deg, transparent 76deg, rgba(130, 90, 255, .2) 132deg, transparent 188deg, rgba(255, 105, 150, .16) 245deg, transparent 310deg, rgba(111, 130, 255, .16) 344deg, transparent 360deg),
+        radial-gradient(ellipse, transparent 20%, rgba(175, 70, 180, .2) 42%, rgba(255, 45, 93, .12) 54%, transparent 72%);
+      filter: blur(5px);
+      box-shadow: 0 0 35px rgba(139, 73, 255, .2);
+    }
+    .hero-galaxy::after {
+      inset: 22% 5%;
+      border: 1px solid rgba(208, 164, 255, .24);
+      box-shadow: 0 0 18px rgba(166, 112, 255, .24), inset 0 0 20px rgba(255, 91, 156, .12);
+      transform: translateZ(12px);
+    }
+    .hero-star {
+      position: absolute;
+      z-index: 1;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 7px 2px rgba(194, 169, 255, .75);
+      animation: hero-star-twinkle 2.8s ease-in-out infinite;
+    }
+    .hero-star-one { top: 17%; left: 18%; transform: translateZ(25px); }
+    .hero-star-two { top: 28%; right: 12%; width: 2px; height: 2px; transform: translateZ(42px); animation-delay: .4s; }
+    .hero-star-three { top: 72%; left: 12%; transform: translateZ(36px); animation-delay: 1s; }
+    .hero-star-four { top: 82%; right: 22%; width: 2px; height: 2px; transform: translateZ(18px); animation-delay: 1.6s; }
+    .hero-star-five { top: 8%; right: 37%; width: 2px; height: 2px; transform: translateZ(50px); animation-delay: .8s; }
+    .hero-star-six { bottom: 12%; left: 42%; transform: translateZ(30px); animation-delay: 1.3s; }
+    .hero-star-seven { top: 48%; left: 4%; width: 2px; height: 2px; transform: translateZ(44px); animation-delay: 2s; }
+    .hero-star-eight { top: 52%; right: 4%; transform: translateZ(22px); animation-delay: .6s; }
+    @keyframes hero-galaxy-spin {
+      to { rotate: 0 0 1 360deg; }
+    }
+    @keyframes hero-star-twinkle {
+      0%, 100% { opacity: .38; scale: .7; }
+      50% { opacity: 1; scale: 1.35; }
+    }
     .hero-orbit {
       position: absolute;
+      z-index: 1;
       inset: 12%;
       border: 1px solid rgba(255, 51, 85, .42);
       border-radius: 50%;
@@ -456,6 +513,7 @@
     }
     .phone-assembly-stage {
       position: absolute;
+      z-index: 2;
       inset: 0;
       display: grid;
       place-items: center;

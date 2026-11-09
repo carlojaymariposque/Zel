@@ -6,6 +6,7 @@
     let orders = (JSON.parse(localStorage.getItem('cr_orders')) || []).filter(order => order.buyerEmail);
     let currentUser = null;
     let supabaseClient = null;
+    let scrollRevealObserver = null;
     let cart = [];
     let pendingAuthAction = null;
     let authMode = 'login';
@@ -110,10 +111,10 @@
         target.classList.remove('dashboard-boot');
         void target.offsetWidth;
         target.classList.add('dashboard-boot');
-        setupScrollReveals(target);
       } else if (viewName === 'tradeHub') {
         renderTradesFeed();
       }
+      if (target) setupScrollReveals(target);
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -440,7 +441,7 @@
             
             <!-- Image & Badges -->
             <div class="relative h-48 bg-cyber-dark overflow-hidden">
-              <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+              <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" loading="lazy" decoding="async" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
               
               <!-- Condition Badge -->
               <div class="absolute top-2.5 left-2.5">
@@ -527,7 +528,7 @@
             <div class="bg-cyber-dark p-3 rounded-lg border border-cyber-border space-y-1 text-xs font-mono">
               <span class="text-cyber-muted block">GUARANTEED AUTHENTICITY</span>
               <p class="text-green-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i> ZEL Tech Inspection Passed</p>
-              <p class="text-[11px] text-cyber-muted">Includes 1-Year Hardware Warranty &amp; Return Escrow.</p>
+              <p class="text-[11px] text-cyber-muted">Includes 1-Year Hardware Warranty.</p>
             </div>
           </div>
 
@@ -771,7 +772,7 @@
 
       const btn = document.getElementById('btnConfirmPay');
       btn.classList.add('button-loading');
-      btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-2"></i> Verifying Escrow Transaction...`;
+      btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-2"></i> Processing Order...`;
       btn.disabled = true;
 
       setTimeout(() => {
@@ -785,7 +786,7 @@
           date: new Date().toISOString().split('T')[0],
           items: [...cart],
           total: total,
-          status: "Order Confirmed / Escrow Locked",
+          status: "Order Confirmed",
           trackingNumber: `CR-FEDEX-${Math.floor(100000000 + Math.random() * 900000000)}`,
           buyerEmail: currentUser.email
         };
@@ -801,13 +802,13 @@
         persistData();
         renderCart();
 
-        btn.innerHTML = `<i class="fa-solid fa-lock mr-2"></i> Authorize &amp; Place Escrow Order`;
+        btn.innerHTML = `<i class="fa-solid fa-cart-check mr-2"></i> Place Order`;
         btn.disabled = false;
         btn.classList.remove('button-loading');
         closeCheckoutModal();
 
         // Show Invoice Receipt
-        document.getElementById('orderConfirmSubtitle').innerText = `Order #${newOrder.id} authorized into cyber escrow.`;
+        document.getElementById('orderConfirmSubtitle').innerText = `Order #${newOrder.id} has been confirmed.`;
         document.getElementById('orderSuccessDetails').innerHTML = `
           <div class="flex justify-between border-b border-cyber-border pb-1">
             <span>Tracking Number:</span>
@@ -818,12 +819,8 @@
             <span>${newOrder.items.length} units</span>
           </div>
           <div class="flex justify-between border-b border-cyber-border pb-1">
-            <span>Total Escrow Paid:</span>
+            <span>Order Total:</span>
             <span class="text-white font-bold">$${newOrder.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div class="flex justify-between text-green-400">
-            <span>Escrow Status:</span>
-            <span>Funds Held Securely Until Delivery Verified</span>
           </div>
         `;
 
@@ -998,7 +995,7 @@
         cashDirection: cashDirection,
         photos: photoFiles.map(file => file.name),
         status: "Under Review",
-        notes: notes || "Hardware tested and ready for escrow dispatch.",
+        notes: notes || "Hardware tested and ready for dispatch.",
         proposer: "You (Verified Trader)",
         timestamp: "Just now",
         proposerEmail: currentUser.email,
@@ -1058,7 +1055,7 @@
 
             <!-- Notes -->
             <p class="text-xs text-gray-300 font-sans italic line-clamp-2">
-              "${escapeHtml(t.notes)}"
+              "${escapeHtml((t.notes || '').replace(/ready for escrow dispatch/gi, 'ready for dispatch'))}"
             </p>
 
             <!-- Actions -->
@@ -1090,7 +1087,7 @@
         persistData();
         renderTradesFeed();
         renderUserDashboard();
-        showToast(`Trade proposal #${tradeId} accepted! Cyber Escrow instructions sent.`);
+        showToast(`Trade proposal #${tradeId} accepted.`);
       } else {
         showToast('Only the seller can accept this trade offer.');
       }
@@ -1115,42 +1112,6 @@
         renderUserDashboard();
         showToast(`Counter-offer of $${counterCash} submitted for #${tradeId}!`);
       }
-    }
-
-    /* ----------------------------------------------------
-       QUICK VALUATION ESTIMATOR BAR
-    ---------------------------------------------------- */
-    function calculateQuickValuation() {
-      const type = document.getElementById('quickDeviceType').value;
-      const cond = document.getElementById('quickDeviceCondition').value;
-      const resultBox = document.getElementById('quickValuationResult');
-
-      let baseVal = 500;
-      if (type === 'smartphone') baseVal = 480;
-      if (type === 'laptop') baseVal = 950;
-      if (type === 'console') baseVal = 320;
-      if (type === 'tablet') baseVal = 400;
-      if (type === 'gpu') baseVal = 700;
-
-      let multiplier = 1.0;
-      if (cond === 'mint') multiplier = 1.15;
-      if (cond === 'fair') multiplier = 0.75;
-
-      const finalVal = Math.round(baseVal * multiplier);
-
-      resultBox.classList.remove('hidden');
-      resultBox.innerHTML = `
-        <div class="space-y-0.5">
-          <span class="text-gray-400">Estimated Trade-In / Cash Payout:</span>
-          <div class="text-lg font-bold text-cyber-red neon-text">$${finalVal} USD Instant Credit</div>
-        </div>
-        <div class="flex items-center space-x-2">
-          <button onclick="openTradeProposalModal()" class="px-3 py-1.5 bg-cyber-red text-white rounded hover:bg-cyber-redGlow transition">
-            Apply This Valuation
-          </button>
-        </div>
-      `;
-      showToast(`Estimated Trade Value: $${finalVal} USD`);
     }
 
     /* ----------------------------------------------------
@@ -1288,7 +1249,7 @@
               <div class="text-cyber-muted text-[11px] mt-0.5">Cash adjustment: $${t.cashDelta} (${t.cashDirection})</div>
             </div>
             <div class="flex items-center space-x-3">
-              <span class="px-2.5 py-1 rounded text-[11px] font-bold border ${t.status === 'Accepted' ? 'border-green-500 text-green-400' : 'border-cyber-border text-white'}">${t.status}</span>
+              <span class="px-2.5 py-1 rounded text-[11px] font-bold border ${t.status === 'Accepted' ? 'border-green-500 text-green-400' : 'border-cyber-border text-white'}">${escapeHtml(t.status)}</span>
               <button onclick="openTradeNegotiatePrompt('${t.id}')" class="px-3 py-1 bg-cyber-dark hover:bg-cyber-red rounded text-white border border-cyber-border transition">Negotiate</button>
             </div>
           </div>
@@ -1308,14 +1269,14 @@
                 <span class="text-white font-bold">${escapeHtml(ord.id)}</span>
                 <span class="text-cyber-muted text-[11px] ml-2">Date: ${ord.date}</span>
               </div>
-              <span class="text-green-400 font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">${escapeHtml(ord.status)}</span>
+              <span class="text-green-400 font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20">${escapeHtml((ord.status || '').replace(/\s*\/\s*Escrow Locked/i, ''))}</span>
             </div>
             <div class="flex justify-between items-center text-gray-300">
               <div>
                 ${ord.items.map(i => `<div>${i.qty}x ${escapeHtml(i.title)}</div>`).join('')}
               </div>
               <div class="text-right">
-                <span class="text-cyber-muted text-[10px] block">ESCROW TOTAL</span>
+                <span class="text-cyber-muted text-[10px] block">ORDER TOTAL</span>
                 <span class="text-sm font-bold text-white">$${ord.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
@@ -1337,7 +1298,7 @@
       }
       userListingsContainer.innerHTML = myItems.map(p => `
         <div class="tech-card reveal-on-scroll bg-cyber-card p-3 rounded-xl border border-cyber-border font-mono text-xs space-y-2">
-          <img src="${escapeHtml(p.image)}" class="h-28 w-full object-cover rounded bg-cyber-dark">
+          <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" loading="lazy" decoding="async" class="h-28 w-full object-cover rounded bg-cyber-dark">
           <div class="font-bold text-white truncate">${escapeHtml(p.title)}</div>
           <div class="flex justify-between text-cyber-muted text-[11px]">
             <span>Price: $${p.price}</span>
@@ -1372,14 +1333,16 @@
         return;
       }
 
-      const observer = new IntersectionObserver(entries => {
-        entries.forEach(entry => {
-          if (!entry.isIntersecting) return;
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        });
-      }, { threshold: 0.12 });
-      elements.forEach(element => observer.observe(element));
+      if (!scrollRevealObserver) {
+        scrollRevealObserver = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('is-visible');
+            scrollRevealObserver.unobserve(entry.target);
+          });
+        }, { rootMargin: '0px 0px 80px 0px', threshold: 0.08 });
+      }
+      elements.forEach(element => scrollRevealObserver.observe(element));
     }
 
     async function removeListing(prodId) {

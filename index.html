@@ -57,14 +57,10 @@ html
 <body class="bg-cyber-black text-cyber-light font-sans cyber-grid min-h-screen flex flex-col antialiased selection:bg-cyber-red selection:text-white">
 
   <!-- TOP CYBER TICKER -->
-  <div id="statusTicker" class="bg-cyber-dark/95 border-b border-cyber-border text-xs py-1.5 px-4 flex justify-between items-center text-cyber-muted font-mono tracking-wider">
+  <div id="statusTicker" class="bg-cyber-dark/95 border-b border-cyber-border text-xs py-1.5 px-4 flex items-center text-cyber-muted font-mono tracking-wider">
     <div class="flex items-center space-x-4">
       <span class="inline-flex items-center text-cyber-red"><span class="w-2 h-2 rounded-full bg-cyber-red animate-ping mr-2"></span>SYS.LIVE: DEVICE EXCHANGE OPEN</span>
       <span class="hidden md:inline">| PRE-OWNED HARDWARE VERIFIED &amp; 1-YR WARRANTY GUARANTEED</span>
-    </div>
-    <div class="flex items-center space-x-5">
-      <span class="hover:text-cyber-red cursor-pointer transition"><i class="fa-solid fa-shield-halved mr-1 text-cyber-red"></i> Escrow Secured</span>
-      <span class="hover:text-cyber-red cursor-pointer transition"><i class="fa-solid fa-bolt mr-1 text-cyber-red"></i> Instant Valuation Engine</span>
     </div>
   </div>
 
@@ -156,8 +152,12 @@ html
       
       <!-- HERO CYBER BANNER -->
       <div class="hero-banner relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyber-card via-cyber-dark to-cyber-black border border-cyber-border p-6 md:p-10 shadow-glass">
-        <div class="hero-galaxy-backdrop" aria-hidden="true"></div>
-        <div class="absolute -right-20 -top-20 w-80 h-80 bg-cyber-red/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="hero-starfield" aria-hidden="true">
+          <span class="hero-starfield-depth"></span>
+          <span class="hero-shooting-star hero-shooting-star-one"></span>
+          <span class="hero-shooting-star hero-shooting-star-two"></span>
+          <span class="hero-shooting-star hero-shooting-star-three"></span>
+        </div>
         <div class="hero-copy max-w-2xl space-y-4 relative z-10">
           <div class="inline-flex items-center space-x-2 bg-cyber-red/10 border border-cyber-red/30 px-3 py-1 rounded-full text-xs font-mono text-cyber-red uppercase tracking-wider">
             <i class="fa-solid fa-bolt-lightning animate-bounce"></i> Dual Trade &amp; Purchase Protocol
@@ -202,13 +202,13 @@ html
                 <span class="phone-notch"></span>
                 <span class="phone-screen-glow"></span>
                 <i class="fa-solid fa-bolt phone-screen-icon"></i>
-                <span class="phone-screen-label">ZEL DEVICE<br>ASSEMBLY</span>
+                <span class="phone-screen-label">UPGRADE YOUR<br>GADGETS</span>
               </div>
               <div class="phone-part phone-back-cover"></div>
             </div>
           </div>
-          <span class="hero-data hero-data-one">DEVICE / ASSEMBLY</span>
-          <span class="hero-data hero-data-two">ZEL HARDWARE LAB</span>
+          <span class="hero-data hero-data-one"></span>
+          <span class="hero-data hero-data-two"></span>
           <span class="hero-signal hero-signal-one"></span>
           <span class="hero-signal hero-signal-two"></span>
         </div>
@@ -216,11 +216,11 @@ html
         <!-- Quick Stats Strip -->
         <div class="relative z-10 mt-8 pt-6 border-t border-cyber-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-mono">
           <div>
-            <div class="text-xl md:text-2xl font-black text-white">4,820+</div>
+            <div class="text-xl md:text-2xl font-black text-white">0</div>
             <div class="text-[11px] text-cyber-muted uppercase">Devices Audited</div>
           </div>
           <div>
-            <div class="text-xl md:text-2xl font-black text-cyber-red">$1.4M+</div>
+            <div class="text-xl md:text-2xl font-black text-cyber-red">0</div>
             <div class="text-[11px] text-cyber-muted uppercase">Trade Credits Paid</div>
           </div>
           <div>
@@ -234,42 +234,11 @@ html
         </div>
       </div>
 
-      <!-- INTERACTIVE VALUATION ESTIMATOR BAR -->
-      <div class="bg-cyber-dark/80 border border-cyber-border rounded-xl p-4 md:p-6 backdrop-blur">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <span class="text-xs font-mono text-cyber-red font-bold uppercase tracking-wider block">QUICK TRADE-IN VALUATION</span>
-            <h3 class="text-lg font-bold text-white font-mono">Got a device to swap or sell?</h3>
-            <p class="text-xs text-cyber-muted">Calculate fair market appraisal instantly and apply it to any item in checkout.</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <select id="quickDeviceType" class="bg-cyber-card text-xs font-mono border border-cyber-border rounded px-3 py-2 text-gray-200 focus:border-cyber-red">
-              <option value="smartphone">Smartphones</option>
-              <option value="laptop">Laptops / MacBooks</option>
-              <option value="console">Gaming Consoles</option>
-              <option value="tablet">Tablets</option>
-              <option value="gpu">Desktop GPUs</option>
-            </select>
-            <select id="quickDeviceCondition" class="bg-cyber-card text-xs font-mono border border-cyber-border rounded px-3 py-2 text-gray-200 focus:border-cyber-red">
-              <option value="mint">Mint / Like New</option>
-              <option value="good">Good / Normal Wear</option>
-              <option value="fair">Fair / Functional</option>
-            </select>
-            <button onclick="calculateQuickValuation()" class="px-4 py-2 bg-cyber-red/20 hover:bg-cyber-red text-cyber-red hover:text-white border border-cyber-red rounded text-xs font-mono font-bold transition">
-              Get Instant Estimate
-            </button>
-          </div>
-        </div>
-        <div id="quickValuationResult" class="hidden mt-4 pt-3 border-t border-cyber-border/60 text-xs font-mono flex items-center justify-between bg-cyber-card/50 p-3 rounded">
-          <!-- Dynamically populated -->
-        </div>
-      </div>
-
       <!-- MAIN CATALOG INTERFACE -->
       <div id="catalogSection" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
         
         <!-- SIDEBAR FILTERS -->
-        <aside class="space-y-6">
+        <aside class="reveal-on-scroll space-y-6">
           <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 space-y-6 sticky top-24">
             
             <div class="flex items-center justify-between pb-3 border-b border-cyber-border">
@@ -344,7 +313,7 @@ html
         <main class="lg:col-span-3 space-y-4">
           
           <!-- Top Bar Sorting & Counter -->
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-cyber-card border border-cyber-border rounded-xl px-4 py-3 gap-3">
+          <div class="reveal-on-scroll flex flex-col sm:flex-row justify-between items-start sm:items-center bg-cyber-card border border-cyber-border rounded-xl px-4 py-3 gap-3">
             <div class="text-xs font-mono text-gray-300">
               Showing <span id="productCount" class="text-cyber-red font-bold">0</span> verified tech products
             </div>
@@ -372,7 +341,7 @@ html
     <!-- ==================== VIEW 2: TRADE & BARTER HUB ==================== -->
     <section id="view-tradeHub" class="hidden space-y-6">
       
-      <div class="border border-cyber-border bg-cyber-card rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-neon-sm">
+      <div class="reveal-on-scroll border border-cyber-border bg-cyber-card rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-neon-sm">
         <div class="space-y-2 max-w-xl">
           <div class="inline-flex items-center space-x-2 bg-cyber-red/20 text-cyber-red px-2.5 py-1 rounded text-xs font-mono font-bold">
             <i class="fa-solid fa-arrows-rotate"></i> PEER-TO-PEER &amp; PLATFORM BARTER
@@ -393,13 +362,13 @@ html
       </div>
 
       <!-- Live Community Barter Feed -->
-      <div class="space-y-4">
+      <div class="reveal-on-scroll space-y-4">
         <div class="flex items-center justify-between">
           <h3 class="font-mono text-lg font-bold text-white flex items-center">
             <span class="w-2.5 h-2.5 bg-cyber-red rounded-full mr-2.5 animate-pulse"></span>
             ACTIVE TRADE OFFERS &amp; COMMUNITY BARTERS
           </h3>
-          <span class="text-xs font-mono text-cyber-muted">Escrow Protected</span>
+          <span class="text-xs font-mono text-cyber-muted">Member-to-member offers</span>
         </div>
 
         <div id="tradeProposalsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -412,7 +381,7 @@ html
     <!-- ==================== VIEW 3: SELL / LIST A DEVICE ==================== -->
     <section id="view-sellPortal" class="hidden max-w-3xl mx-auto space-y-6">
       
-      <div class="text-center space-y-2 mb-8">
+      <div class="reveal-on-scroll text-center space-y-2 mb-8">
         <span class="text-xs font-mono text-cyber-red uppercase tracking-widest font-bold">SELLER MANAGEMENT PROTOCOL</span>
         <h2 class="text-3xl font-mono font-black text-white">LIST YOUR DEVICE FOR SALE OR TRADE</h2>
         <p class="text-xs text-cyber-muted max-w-lg mx-auto">
@@ -420,7 +389,7 @@ html
         </p>
       </div>
 
-      <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6 md:p-8 space-y-6">
+      <div class="reveal-on-scroll bg-cyber-card border border-cyber-border rounded-2xl p-6 md:p-8 space-y-6">
         <form id="sellDeviceForm" onsubmit="handleNewDeviceListing(event)" class="space-y-5">
           
           <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -510,7 +479,7 @@ html
     <!-- ==================== VIEW 4: MY ORDERS & TRADES DASHBOARD ==================== -->
     <section id="view-dashboard" class="hidden space-y-6">
       
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-cyber-border gap-4">
+      <div class="reveal-on-scroll flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-cyber-border gap-4">
         <div>
           <h2 class="text-2xl font-mono font-black text-white">HARDWARE OPS DASHBOARD</h2>
           <p class="text-xs text-cyber-muted">Track your platform purchases, device trade negotiation threads, and listed gear.</p>
@@ -668,7 +637,7 @@ html
               <span id="cartDiscount">-$0.00</span>
             </div>
             <div class="flex justify-between text-cyber-muted text-[11px]">
-              <span>Verified Tech Escrow &amp; Handling</span>
+              <span>Handling</span>
               <span class="text-green-400">FREE</span>
             </div>
             <div class="flex justify-between text-sm font-bold text-white pt-2 border-t border-cyber-border">
@@ -885,7 +854,7 @@ html
               <label class="payment-method p-3 bg-cyber-card rounded border border-cyber-border hover:border-cyber-red cursor-pointer flex flex-col items-center justify-center text-center">
                 <input type="radio" name="payMethod" value="crypto" class="sr-only">
                 <i class="fa-brands fa-bitcoin text-cyber-red mb-1"></i>
-                <span class="text-[10px] text-white font-bold">Crypto Escrow</span>
+                <span class="text-[10px] text-white font-bold">Cryptocurrency</span>
               </label>
             </div>
 
@@ -905,7 +874,7 @@ html
           </div>
 
           <button type="submit" id="btnConfirmPay" class="w-full py-4 bg-cyber-red hover:bg-cyber-redGlow text-white font-mono text-sm uppercase tracking-wider font-bold rounded-lg shadow-neon transition flex items-center justify-center">
-            <i class="fa-solid fa-lock mr-2"></i> Authorize &amp; Place Escrow Order
+            <i class="fa-solid fa-cart-check mr-2"></i> Place Order
           </button>
 
         </form>
@@ -922,8 +891,8 @@ html
       </div>
       
       <div class="space-y-1">
-        <h3 class="text-2xl font-mono font-black text-white">HARDWARE TRANSACTION SECURED</h3>
-        <p class="text-xs text-cyber-muted font-mono" id="orderConfirmSubtitle">Order #CR-94819 authorized into cyber escrow.</p>
+        <h3 class="text-2xl font-mono font-black text-white">ORDER CONFIRMED</h3>
+        <p class="text-xs text-cyber-muted font-mono" id="orderConfirmSubtitle">Your order has been confirmed.</p>
       </div>
 
       <div id="orderSuccessDetails" class="bg-cyber-card p-4 rounded-xl border border-cyber-border text-left font-mono text-xs space-y-2 text-gray-300">
@@ -946,7 +915,7 @@ html
 
   <!-- FOOTER -->
   <footer class="bg-cyber-dark border-t border-cyber-border mt-16 font-mono text-xs text-cyber-muted">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 md:grid-cols-4 gap-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
       
       <div class="space-y-3">
         <div class="zel-footer-brand flex items-center space-x-3">
@@ -981,26 +950,8 @@ html
           <li><a href="javascript:void(0)" onclick="openTradeProposalModal()" class="hover:text-cyber-red">Direct Device Barter</a></li>
           <li><a href="javascript:void(0)" onclick="switchView('tradeHub')" class="hover:text-cyber-red">Peer Counter-Offer Portal</a></li>
           <li><a href="javascript:void(0)" onclick="openTradeProposalModal()" class="hover:text-cyber-red">Condition Appraisal Matrix</a></li>
-          <li><a href="javascript:void(0)" onclick="showToast('Escrow holds payment until delivery is confirmed.'); return false;" class="hover:text-cyber-red">Escrow Shipment Protection</a></li>
           <li><a href="javascript:void(0)" onclick="switchView('sellPortal')" class="hover:text-cyber-red">Merchant Listing Portal</a></li>
         </ul>
-      </div>
-
-      <div>
-        <h4 class="text-white font-bold uppercase mb-3 text-xs tracking-wider">Escrow Node Status</h4>
-        <div class="bg-cyber-black p-3 rounded border border-cyber-border space-y-2">
-          <div class="flex items-center justify-between text-[10px]">
-            <span class="text-green-400"><i class="fa-solid fa-circle text-[8px] mr-1"></i> NODE ATLANTA-01</span>
-            <span class="text-cyber-muted">99.98% Online</span>
-          </div>
-          <div class="flex items-center justify-between text-[10px]">
-            <span class="text-green-400"><i class="fa-solid fa-circle text-[8px] mr-1"></i> AUTO-APPRAISAL API</span>
-            <span class="text-cyber-muted">Active</span>
-          </div>
-          <div class="pt-1 text-[9px] text-cyber-muted border-t border-cyber-border">
-            All trades inspected by certified technicians. 30-Day Money-Back Guarantee.
-          </div>
-        </div>
       </div>
 
     </div>

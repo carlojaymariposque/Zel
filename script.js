@@ -6,6 +6,9 @@
     let orders = (JSON.parse(localStorage.getItem('cr_orders')) || []).filter(order => order.buyerEmail);
     let currentUser = null;
     let supabaseClient = null;
+    let listingsRefreshPromise = null;
+    let listingsRealtimeChannel = null;
+    let listingsRealtimeWarningShown = false;
     let scrollRevealObserver = null;
     let cart = [];
     let pendingAuthAction = null;
@@ -13,9 +16,18 @@
     let promoDiscountPercent = 0;
     let activeFilterCategory = "All";
     let activeSearchTerm = "";
-    let activeMaxPrice = 3500;
+    let activeMaxPrice = 200000;
     let selectedConditions = [];
     let tradeOnlyFilter = false;
+
+    function formatCurrency(amount, minimumFractionDigits = 0) {
+      return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits,
+        maximumFractionDigits: 2
+      }).format(Number(amount) || 0);
+    }
 
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, character => ({
@@ -70,6 +82,11 @@
         if (error) throw error;
         if (data.session) await hydrateCurrentUser(data.session.user);
         await loadListings();
+        subscribeToListingChanges();
+        window.addEventListener('focus', refreshListings);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) refreshListings();
+        });
       } catch (error) {
         console.error('Unable to initialize the Supabase marketplace.', error);
         showToast(`Marketplace connection failed: ${error.message || 'Check Supabase configuration.'}`);
@@ -297,6 +314,38 @@
       updateDashboardCounts();
     }
 
+    function subscribeToListingChanges() {
+      if (!supabaseClient || listingsRealtimeChannel) return;
+      listingsRealtimeChannel = supabaseClient
+        .channel('public-listings')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'listings'
+        }, refreshListings)
+        .subscribe((status, error) => {
+          if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT') return;
+          console.error('Live listing updates are unavailable.', error || status);
+          if (listingsRealtimeWarningShown) return;
+          listingsRealtimeWarningShown = true;
+          showToast('Live listing updates are unavailable. Refresh the store to see new devices.');
+        });
+    }
+
+    async function refreshListings() {
+      if (!supabaseClient) return;
+      if (listingsRefreshPromise) return listingsRefreshPromise;
+      listingsRefreshPromise = loadListings()
+        .catch(error => {
+          console.error('Unable to refresh marketplace listings.', error);
+          showToast(`Unable to refresh listings: ${error.message || 'Please try again.'}`);
+        })
+        .finally(() => {
+          listingsRefreshPromise = null;
+        });
+      return listingsRefreshPromise;
+    }
+
     async function logOut() {
       if (!supabaseClient) return;
       const { error } = await supabaseClient.auth.signOut();
@@ -356,16 +405,16 @@
 
     function updatePriceFilter(val) {
       activeMaxPrice = parseFloat(val);
-      document.getElementById('priceLabel').innerText = `$${activeMaxPrice.toLocaleString()}`;
+      document.getElementById('priceLabel').innerText = formatCurrency(activeMaxPrice);
       applyFilters();
     }
 
     function resetFilters() {
       activeFilterCategory = "All";
       activeSearchTerm = "";
-      activeMaxPrice = 3500;
-      document.getElementById('priceRange').value = 3500;
-      document.getElementById('priceLabel').innerText = "$3,500";
+      activeMaxPrice = 200000;
+      document.getElementById('priceRange').value = 200000;
+      document.getElementById('priceLabel').innerText = formatCurrency(activeMaxPrice);
       document.getElementById('globalSearch').value = "";
       document.getElementById('tradeOnlyFilter').checked = false;
       document.querySelectorAll('input[name="conditionFilter"]').forEach(cb => cb.checked = false);
@@ -483,11 +532,11 @@
                 <div class="flex items-baseline justify-between">
                   <div>
                     <span class="text-xs text-cyber-muted block text-[10px] font-mono">PURCHASE PRICE</span>
-                    <span class="text-lg font-mono font-bold text-white">$${p.price.toLocaleString()}</span>
+                    <span class="text-lg font-mono font-bold text-white">${formatCurrency(p.price)}</span>
                   </div>
                   <div class="text-right">
                     <span class="text-xs text-cyber-red block text-[10px] font-mono">EST. TRADE VALUE</span>
-                    <span class="text-xs font-mono font-bold text-cyber-red">~$${p.tradeValue.toLocaleString()}</span>
+                    <span class="text-xs font-mono font-bold text-cyber-red">~${formatCurrency(p.tradeValue)}</span>
                   </div>
                 </div>
               </div>
@@ -554,17 +603,17 @@
             <div class="flex items-baseline justify-between pt-2 border-t border-cyber-border">
               <div>
                 <span class="text-[10px] font-mono text-cyber-muted block">CASH OUTRIGHT</span>
-                <span class="text-2xl font-mono font-black text-white">$${item.price.toLocaleString()}</span>
+                <span class="text-2xl font-mono font-black text-white">${formatCurrency(item.price)}</span>
               </div>
               <div class="text-right">
                 <span class="text-[10px] font-mono text-cyber-red block">TRADE CREDIT ALLOWANCE</span>
-                <span class="text-sm font-mono font-bold text-cyber-red">Up to $${item.tradeValue.toLocaleString()} Off</span>
+                <span class="text-sm font-mono font-bold text-cyber-red">Up to ${formatCurrency(item.tradeValue)} Off</span>
               </div>
             </div>
 
             <div class="space-y-2 pt-2">
               <button onclick="addToCart(${jsArgument(item.id)}); closeProductModal();" class="w-full py-3 bg-cyber-red hover:bg-cyber-redGlow text-white font-mono text-xs uppercase font-bold tracking-wider rounded-lg shadow-neon transition flex items-center justify-center">
-                <i class="fa-solid fa-cart-shopping mr-2"></i> Add To Cart — $${item.price.toLocaleString()}
+                <i class="fa-solid fa-cart-shopping mr-2"></i> Add To Cart — ${formatCurrency(item.price)}
               </button>
               <button onclick="closeProductModal(); openTradeProposalForProduct(${jsArgument(item.id)});" class="w-full py-2.5 bg-cyber-dark hover:bg-cyber-card border border-cyber-red/50 text-cyber-red hover:text-white font-mono text-xs uppercase font-bold rounded-lg transition flex items-center justify-center">
                 <i class="fa-solid fa-arrow-right-arrow-left mr-2"></i> Exchange My Device For This
@@ -663,8 +712,8 @@
             <button onclick="toggleCartDrawer(false); switchView('shop')" class="text-xs text-cyber-red underline">Browse Available Tech</button>
           </div>
         `;
-        subtotalEl.innerText = "$0.00";
-        grandTotalEl.innerText = "$0.00";
+        subtotalEl.innerText = formatCurrency(0, 2);
+        grandTotalEl.innerText = formatCurrency(0, 2);
         discountRow.style.display = 'none';
         return;
       }
@@ -675,7 +724,7 @@
           <div class="flex-1 min-w-0 font-mono">
             <h5 class="text-xs font-bold text-white truncate">${escapeHtml(item.title)}</h5>
             <span class="text-[10px] text-cyber-muted block">${escapeHtml(item.condition)}</span>
-            <div class="text-xs font-bold text-cyber-red mt-1">$${(item.price * item.qty).toLocaleString()}</div>
+            <div class="text-xs font-bold text-cyber-red mt-1">${formatCurrency(item.price * item.qty)}</div>
           </div>
           <div class="flex items-center space-x-1.5 font-mono">
             <button onclick="updateCartQty(${jsArgument(item.id)}, -1)" class="w-6 h-6 rounded bg-cyber-dark border border-cyber-border hover:border-cyber-red text-white flex items-center justify-center text-xs">-</button>
@@ -690,16 +739,16 @@
       const discount = subtotal * promoDiscountPercent;
       const grandTotal = Math.max(0, subtotal - discount);
 
-      subtotalEl.innerText = `$${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      subtotalEl.innerText = formatCurrency(subtotal, 2);
 
       if (promoDiscountPercent > 0) {
         discountRow.style.display = 'flex';
-        discountEl.innerText = `-$${discount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        discountEl.innerText = `-${formatCurrency(discount, 2)}`;
       } else {
         discountRow.style.display = 'none';
       }
 
-      grandTotalEl.innerText = `$${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      grandTotalEl.innerText = formatCurrency(grandTotal, 2);
     }
 
     function toggleCartDrawer(open) {
@@ -753,7 +802,7 @@
       const discount = subtotal * promoDiscountPercent;
       const payable = subtotal - discount;
 
-      document.getElementById('checkoutPayableAmount').innerText = `$${payable.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('checkoutPayableAmount').innerText = formatCurrency(payable, 2);
       
       const modal = document.getElementById('checkoutModal');
       modal.classList.remove('hidden');
@@ -820,7 +869,7 @@
           </div>
           <div class="flex justify-between border-b border-cyber-border pb-1">
             <span>Order Total:</span>
-            <span class="text-white font-bold">$${newOrder.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+            <span class="text-white font-bold">${formatCurrency(newOrder.total, 2)}</span>
           </div>
         `;
 
@@ -850,7 +899,7 @@
       const availableProducts = products.filter(product => currentUser && product.sellerId !== currentUser.id);
       select.innerHTML = `<option value="" selected disabled>${availableProducts.length ? 'Choose a community listing' : 'No other-user listings available'}</option>` + availableProducts.map(p => `
         <option value="${escapeHtml(p.id)}" ${p.id === preselectId ? 'selected' : ''}>
-          ${escapeHtml(p.title)} (${escapeHtml(p.condition)}) — Listed $${p.price}
+          ${escapeHtml(p.title)} (${escapeHtml(p.condition)}) — Listed ${formatCurrency(p.price)}
         </option>
       `).join('');
 
@@ -895,11 +944,11 @@
       const cond = document.getElementById('tradeCondition').value;
       const myValInput = document.getElementById('tradeMyValue');
       
-      let base = 600;
-      if (cond === 'Mint') base = 680;
-      if (cond === 'Good') base = 520;
-      if (cond === 'Fair') base = 380;
-      if (cond === 'Damaged Screen') base = 220;
+      let base = 30000;
+      if (cond === 'Mint') base = 35000;
+      if (cond === 'Good') base = 28000;
+      if (cond === 'Fair') base = 20000;
+      if (cond === 'Damaged Screen') base = 12000;
 
       myValInput.value = base;
       recalculateTradeBalance();
@@ -924,11 +973,11 @@
       if (!document.getElementById('tradeTargetDeviceSelect').value) {
         summaryText.textContent = "Select another user's listing to compare values";
       } else if (Math.abs(diff) < 20) {
-        summaryText.innerHTML = `<span class="text-green-400 font-bold"><i class="fa-solid fa-circle-check"></i> Fair &amp; Balanced Exchange ($${netOfferValue} vs $${targetVal})</span>`;
+        summaryText.innerHTML = `<span class="text-green-400 font-bold"><i class="fa-solid fa-circle-check"></i> Fair &amp; Balanced Exchange (${formatCurrency(netOfferValue)} vs ${formatCurrency(targetVal)})</span>`;
       } else if (diff < 0) {
-        summaryText.innerHTML = `<span class="text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation"></i> Offer is $${Math.abs(diff)} lower than target. Consider adding cash top-up.</span>`;
+        summaryText.innerHTML = `<span class="text-amber-400 font-bold"><i class="fa-solid fa-triangle-exclamation"></i> Offer is ${formatCurrency(Math.abs(diff))} lower than target. Consider adding cash top-up.</span>`;
       } else {
-        summaryText.innerHTML = `<span class="text-cyber-red font-bold"><i class="fa-solid fa-arrow-trend-up"></i> Your offer exceeds target value by $${diff}! Advantageous for seller.</span>`;
+        summaryText.innerHTML = `<span class="text-cyber-red font-bold"><i class="fa-solid fa-arrow-trend-up"></i> Your offer exceeds target value by ${formatCurrency(diff)}! Advantageous for seller.</span>`;
       }
     }
 
@@ -1025,7 +1074,7 @@
         if (t.status === 'Counter-Offered') badgeColor = "bg-blue-500/10 text-blue-400 border-blue-500/30";
 
         const cashText = t.cashDelta > 0 
-          ? (t.cashDirection === 'i_pay' ? `+ Buyer adds $${t.cashDelta} cash` : `+ Requests $${t.cashDelta} cash from seller`)
+          ? (t.cashDirection === 'i_pay' ? `+ Buyer adds ${formatCurrency(t.cashDelta)} cash` : `+ Requests ${formatCurrency(t.cashDelta)} cash from seller`)
           : "Straight Hardware Barter (No cash added)";
 
         return `
@@ -1044,7 +1093,7 @@
               <div>
                 <span class="text-[10px] text-cyber-muted block">OFFERED HARDWARE</span>
                 <div class="text-sm font-bold text-white">${escapeHtml(t.userDevice)}</div>
-                <div class="text-xs text-cyber-red mt-0.5">Est. Value: $${t.estimatedValue} (${escapeHtml(t.condition)})</div>
+                <div class="text-xs text-cyber-red mt-0.5">Est. Value: ${formatCurrency(t.estimatedValue)} (${escapeHtml(t.condition)})</div>
               </div>
               <div class="sm:border-l sm:border-cyber-border sm:pl-3 pt-2 sm:pt-0">
                 <span class="text-[10px] text-cyber-muted block">REQUESTED TECH</span>
@@ -1102,15 +1151,15 @@
         return;
       }
 
-      const counterCash = prompt(`Enter Counter-Offer Cash Amount for Trade #${tradeId} (Current: $${trade.cashDelta}):`, trade.cashDelta + 50);
+      const counterCash = prompt(`Enter Counter-Offer Cash Amount for Trade #${tradeId} (Current: ${formatCurrency(trade.cashDelta)}):`, trade.cashDelta + 50);
       if (counterCash !== null && !isNaN(counterCash)) {
         trade.status = "Counter-Offered";
         trade.cashDelta = parseFloat(counterCash);
-        trade.notes = `Counter-offer updated: Cash adjustment revised to $${counterCash}.`;
+        trade.notes = `Counter-offer updated: Cash adjustment revised to ${formatCurrency(counterCash)}.`;
         persistData();
         renderTradesFeed();
         renderUserDashboard();
-        showToast(`Counter-offer of $${counterCash} submitted for #${tradeId}!`);
+        showToast(`Counter-offer of ${formatCurrency(counterCash)} submitted for #${tradeId}!`);
       }
     }
 
@@ -1193,6 +1242,7 @@
         description: listing.description,
         sellerName: currentUser.name
       };
+      products = products.filter(product => product.id !== newProduct.id);
       products.unshift(newProduct);
       persistData();
 
@@ -1246,7 +1296,7 @@
                 <span class="text-cyber-muted">• ${t.timestamp}</span>
               </div>
               <div class="text-white font-bold text-sm mt-0.5">My ${escapeHtml(t.userDevice)} ➔ ${escapeHtml(t.targetProduct)}</div>
-              <div class="text-cyber-muted text-[11px] mt-0.5">Cash adjustment: $${t.cashDelta} (${t.cashDirection})</div>
+              <div class="text-cyber-muted text-[11px] mt-0.5">Cash adjustment: ${formatCurrency(t.cashDelta)} (${escapeHtml(t.cashDirection)})</div>
             </div>
             <div class="flex items-center space-x-3">
               <span class="px-2.5 py-1 rounded text-[11px] font-bold border ${t.status === 'Accepted' ? 'border-green-500 text-green-400' : 'border-cyber-border text-white'}">${escapeHtml(t.status)}</span>
@@ -1277,7 +1327,7 @@
               </div>
               <div class="text-right">
                 <span class="text-cyber-muted text-[10px] block">ORDER TOTAL</span>
-                <span class="text-sm font-bold text-white">$${ord.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span class="text-sm font-bold text-white">${formatCurrency(ord.total, 2)}</span>
               </div>
             </div>
             <div class="pt-2 border-t border-cyber-border/60 flex items-center justify-between text-[11px] text-cyber-muted">
@@ -1301,7 +1351,7 @@
           <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" loading="lazy" decoding="async" class="h-28 w-full object-cover rounded bg-cyber-dark">
           <div class="font-bold text-white truncate">${escapeHtml(p.title)}</div>
           <div class="flex justify-between text-cyber-muted text-[11px]">
-            <span>Price: $${p.price}</span>
+            <span>Price: ${formatCurrency(p.price)}</span>
             <span>${escapeHtml(p.condition)}</span>
           </div>
           <button onclick="removeListing(${jsArgument(p.id)})" class="w-full py-1 text-cyber-red bg-cyber-dark border border-cyber-border rounded hover:bg-cyber-red hover:text-white transition">
@@ -1321,8 +1371,58 @@
       const myListings = products.filter(product => product.sellerId === currentUser.id);
       document.getElementById('profileName').textContent = currentUser.name || 'Member';
       document.getElementById('profileEmail').textContent = currentUser.email;
+      document.getElementById('profileNameInput').value = currentUser.name || '';
       document.getElementById('profileActivity').textContent =
         `${myListings.length} listings | ${myTrades.length} trade offers | ${myOrders.length} orders`;
+    }
+
+    function setProfileEditMode(isEditing) {
+      const form = document.getElementById('profileEditForm');
+      const editButton = document.getElementById('editProfileButton');
+      form.classList.toggle('hidden', !isEditing);
+      editButton.classList.toggle('hidden', isEditing);
+      if (isEditing) document.getElementById('profileNameInput').focus();
+    }
+
+    async function saveProfile(event) {
+      event.preventDefault();
+      if (!currentUser || !supabaseClient) {
+        showToast('Sign in before editing your profile.');
+        return;
+      }
+
+      const name = document.getElementById('profileNameInput').value.trim();
+      if (!name || name.length > 80) {
+        showToast('Enter a display name between 1 and 80 characters.');
+        return;
+      }
+
+      const saveButton = document.getElementById('saveProfileButton');
+      saveButton.disabled = true;
+      saveButton.textContent = 'Saving...';
+      try {
+        const { data, error } = await supabaseClient
+          .from('profiles')
+          .update({ display_name: name })
+          .eq('id', currentUser.id)
+          .select('display_name')
+          .single();
+        if (error) throw error;
+        currentUser.name = data.display_name;
+        products.forEach(product => {
+          if (product.sellerId === currentUser.id) product.sellerName = data.display_name;
+        });
+        renderCatalog();
+        renderUserDashboard();
+        setProfileEditMode(false);
+        showToast('Profile name updated.');
+      } catch (error) {
+        console.error('Unable to update the member profile.', error);
+        showToast(`Unable to update profile: ${error.message || 'Please try again.'}`);
+      } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save';
+      }
     }
 
     function setupScrollReveals(root = document) {

@@ -141,3 +141,23 @@ grant select on public.profiles to anon, authenticated;
 grant update (display_name) on public.profiles to authenticated;
 grant select on public.listings to anon, authenticated;
 grant insert, update, delete on public.listings to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication where pubname = 'supabase_realtime'
+  ) then
+    raise exception 'Supabase Realtime publication is unavailable.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'listings'
+  ) then
+    alter publication supabase_realtime add table public.listings;
+  end if;
+end;
+$$;

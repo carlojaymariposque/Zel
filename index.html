@@ -161,7 +161,7 @@
             <i class="fa-solid fa-bolt-lightning animate-bounce"></i> Dual Trade &amp; Purchase Protocol
           </div>
           <h1 class="font-mono text-3xl sm:text-4xl md:text-5xl font-black text-white leading-tight">
-            UPGRADE TECH. <br><span class="glitch-text text-cyber-red neon-text" data-text="TRADE HARDWARE.">TRADE HARDWARE.</span> ZERO DELAY.
+            UPGRADE TECH. <br><span class="glitch-text text-cyber-red neon-text" data-text="TRADE HARDWARE.">ZYBER ELECTRONICS</span> LIST. GADGETS
           </h1>
           <p class="hero-description text-gray-400 text-sm md:text-base leading-relaxed">
             Buy brand-new flagship electronics or swap your current smartphone, laptop, console, or GPU with our audited trade-in system. Offset purchases with your old tech or barter directly.
@@ -284,9 +284,9 @@
             <div>
               <div class="flex justify-between items-center text-xs font-mono mb-2">
                 <span class="text-gray-400 uppercase">Max Price</span>
-                <span id="priceLabel" class="text-cyber-red font-bold font-mono">$3,500</span>
+                <span id="priceLabel" class="text-cyber-red font-bold font-mono">₱200,000</span>
               </div>
-              <input type="range" id="priceRange" min="50" max="3500" step="50" value="3500" 
+              <input type="range" id="priceRange" min="0" max="200000" step="1000" value="200000"
                 class="w-full accent-cyber-red bg-cyber-dark h-1.5 rounded-lg appearance-none cursor-pointer"
                 oninput="updatePriceFilter(this.value)">
             </div>
@@ -424,14 +424,14 @@
             </div>
 
             <div>
-              <label class="block text-xs font-mono text-gray-300 font-semibold mb-1">Cash Price ($ USD) *</label>
-              <input type="number" id="listPrice" required min="10" step="5" placeholder="799" 
+              <label class="block text-xs font-mono text-gray-300 font-semibold mb-1">Cash Price (PHP) *</label>
+              <input type="number" id="listPrice" required min="10" step="1" placeholder="45999"
                 class="w-full bg-cyber-dark border border-cyber-border rounded-lg p-2.5 text-sm text-white focus:border-cyber-red focus:outline-none">
             </div>
 
             <div>
-              <label class="block text-xs font-mono text-gray-300 font-semibold mb-1">Trade Value ($ USD)</label>
-              <input type="number" id="listTradeValue" min="10" step="5" placeholder="700" 
+              <label class="block text-xs font-mono text-gray-300 font-semibold mb-1">Trade Value (PHP)</label>
+              <input type="number" id="listTradeValue" min="10" step="1" placeholder="39999"
                 class="w-full bg-cyber-dark border border-cyber-border rounded-lg p-2.5 text-sm text-white focus:border-cyber-red focus:outline-none">
             </div>
           </div>
@@ -521,6 +521,17 @@
               <p class="text-xs font-mono text-cyber-red uppercase tracking-widest">MEMBER PROFILE</p>
               <h3 id="profileName" class="mt-1 text-2xl font-mono font-black text-white break-words"></h3>
               <p id="profileEmail" class="mt-1 text-sm text-cyber-muted break-all"></p>
+              <button type="button" id="editProfileButton" onclick="setProfileEditMode(true)" class="mt-3 px-3 py-1.5 rounded-lg border border-cyber-red/50 text-cyber-red hover:bg-cyber-red hover:text-white font-mono text-xs transition">
+                <i class="fa-solid fa-pen-to-square mr-1"></i> Edit Name
+              </button>
+              <form id="profileEditForm" onsubmit="saveProfile(event)" class="hidden mt-3 flex flex-wrap items-end gap-2">
+                <label for="profileNameInput" class="flex-1 min-w-[180px] text-xs font-mono text-gray-300">
+                  Display name
+                  <input id="profileNameInput" type="text" required minlength="1" maxlength="80" autocomplete="name" class="mt-1 w-full bg-cyber-dark border border-cyber-border rounded-lg p-2 text-sm text-white focus:border-cyber-red focus:outline-none">
+                </label>
+                <button id="saveProfileButton" type="submit" class="px-3 py-2 rounded-lg bg-cyber-red hover:bg-cyber-redGlow text-white font-mono text-xs font-bold transition">Save</button>
+                <button type="button" onclick="setProfileEditMode(false)" class="px-3 py-2 rounded-lg border border-cyber-border text-gray-300 hover:text-white font-mono text-xs transition">Cancel</button>
+              </form>
             </div>
           </div>
           <div class="profile-details mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -628,11 +639,11 @@
           <div class="space-y-1.5 text-gray-300">
             <div class="flex justify-between">
               <span>Subtotal</span>
-              <span id="cartSubtotal" class="font-bold text-white">$0.00</span>
+              <span id="cartSubtotal" class="font-bold text-white">₱0.00</span>
             </div>
             <div class="flex justify-between text-cyber-red" id="cartDiscountRow" style="display:none;">
               <span>Promo Discount</span>
-              <span id="cartDiscount">-$0.00</span>
+              <span id="cartDiscount">-₱0.00</span>
             </div>
             <div class="flex justify-between text-cyber-muted text-[11px]">
               <span>Handling</span>
@@ -640,7 +651,7 @@
             </div>
             <div class="flex justify-between text-sm font-bold text-white pt-2 border-t border-cyber-border">
               <span>Estimated Total</span>
-              <span id="cartGrandTotal" class="text-cyber-red neon-text text-base">$0.00</span>
+              <span id="cartGrandTotal" class="text-cyber-red neon-text text-base">₱0.00</span>
             </div>
           </div>
 
@@ -714,8 +725,8 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-gray-300 mb-1">Your Estimated Device Value ($ USD) *</label>
-                <input type="number" id="tradeMyValue" required min="20" step="10" placeholder="550" 
+                <label class="block text-gray-300 mb-1">Your Estimated Device Value (PHP) *</label>
+                <input type="number" id="tradeMyValue" required min="20" step="1" placeholder="30000"
                   class="w-full bg-cyber-dark border border-cyber-border rounded p-2 text-white focus:border-cyber-red focus:outline-none"
                   oninput="recalculateTradeBalance()">
               </div>
@@ -758,19 +769,19 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-gray-300 mb-1">Target Item Valuation ($ USD)</label>
+                <label class="block text-gray-300 mb-1">Target Item Valuation (PHP)</label>
                 <input type="number" id="tradeTargetValue" readonly 
                   class="w-full bg-cyber-dark/60 border border-cyber-border rounded p-2 text-cyber-muted focus:outline-none">
               </div>
 
               <div>
-                <label class="block text-gray-300 mb-1">Cash Payment Adjustment (Top-Up)</label>
+                <label class="block text-gray-300 mb-1">Cash Payment Adjustment (PHP Top-Up)</label>
                 <div class="flex">
                   <select id="tradeCashDirection" onchange="recalculateTradeBalance()" class="bg-cyber-dark border border-cyber-border border-r-0 rounded-l p-2 text-white">
                     <option value="i_pay">+ I will add cash:</option>
                     <option value="they_pay">- Request cash added to me:</option>
                   </select>
-                  <input type="number" id="tradeCashDelta" min="0" step="10" placeholder="0" 
+                  <input type="number" id="tradeCashDelta" min="0" step="1" placeholder="0"
                     class="w-full bg-cyber-dark border border-cyber-border rounded-r p-2 text-white focus:border-cyber-red focus:outline-none"
                     oninput="recalculateTradeBalance()">
                 </div>
@@ -868,7 +879,7 @@
           <!-- Checkout Order Total -->
           <div class="bg-cyber-card/70 p-4 rounded-xl border border-cyber-border flex justify-between items-center text-sm font-mono">
             <span class="text-gray-300">Amount Payable:</span>
-            <span id="checkoutPayableAmount" class="text-xl font-bold text-cyber-red font-mono neon-text">$0.00</span>
+            <span id="checkoutPayableAmount" class="text-xl font-bold text-cyber-red font-mono neon-text">₱0.00</span>
           </div>
 
           <button type="submit" id="btnConfirmPay" class="w-full py-4 bg-cyber-red hover:bg-cyber-redGlow text-white font-mono text-sm uppercase tracking-wider font-bold rounded-lg shadow-neon transition flex items-center justify-center">

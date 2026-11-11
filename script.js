@@ -11,6 +11,9 @@
     let listingsRealtimeWarningShown = false;
     let scrollRevealObserver = null;
     let cart = [];
+    let selectedProfileAvatar = null;
+    let selectedListingImages = [];
+    let pageLoaderTimer = null;
     let pendingAuthAction = null;
     let authMode = 'login';
     let promoDiscountPercent = 0;
@@ -19,6 +22,8 @@
     let activeMaxPrice = 200000;
     let selectedConditions = [];
     let tradeOnlyFilter = false;
+    let activeProductGalleryIndex = 0;
+    let activeProductGalleryProductId = null;
 
     function formatCurrency(amount, minimumFractionDigits = 0) {
       return new Intl.NumberFormat('en-PH', {
@@ -58,12 +63,62 @@
       localStorage.setItem('cr_orders', JSON.stringify(orders));
       updateCartBadges();
       updateDashboardCounts();
+      renderHomeDashboard();
+    }
+
+    function hidePageLoader() {
+      const loader = document.getElementById('pageLoader');
+      if (!loader) return;
+      loader.classList.add('page-loader-hidden');
+      loader.classList.remove('page-loader-interaction');
+      if (pageLoaderTimer) window.clearTimeout(pageLoaderTimer);
+      pageLoaderTimer = null;
+    }
+
+    function showInteractionLoader() {
+      const loader = document.getElementById('pageLoader');
+      if (!loader) return;
+      loader.classList.remove('page-loader-hidden');
+      loader.classList.add('page-loader-interaction');
+      if (pageLoaderTimer) window.clearTimeout(pageLoaderTimer);
+      pageLoaderTimer = window.setTimeout(hidePageLoader, 420);
+    }
+
+    function setupMainFireBackground() {
+      const video = document.querySelector('.main-fire-video');
+      if (!video || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+      const playVideo = () => {
+        if (!video.dataset.loaded) {
+          video.src = video.dataset.src;
+          video.dataset.loaded = 'true';
+          video.load();
+        }
+        video.play().catch(error => {
+          console.warn('The background video could not start playback.', error);
+        });
+      };
+
+      if (!('IntersectionObserver' in window)) {
+        playVideo();
+        return;
+      }
+
+      const observer = new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) {
+          playVideo();
+        } else {
+          video.pause();
+        }
+      }, { rootMargin: '100px' });
+      observer.observe(video);
     }
 
     /* ----------------------------------------------------
        INITIALIZATION
     ---------------------------------------------------- */
     document.addEventListener('DOMContentLoaded', async () => {
+      setupMainFireBackground();
       renderCategoryFilters();
       renderTradesFeed();
       renderCart();
@@ -95,19 +150,33 @@
         renderCatalog();
         populateTargetDeviceDropdown();
         updateDashboardCounts();
-        window.setTimeout(() => document.getElementById('pageLoader').classList.add('page-loader-hidden'), 900);
+        renderHomeDashboard();
+        switchView(getViewFromLocation(), false);
+        pageLoaderTimer = window.setTimeout(hidePageLoader, 900);
       }
     });
 
     /* ----------------------------------------------------
        NAVIGATION ROUTING
     ---------------------------------------------------- */
-    function switchView(viewName) {
+    function getViewFromLocation() {
+      const route = window.location.hash.slice(1);
+      const routes = {
+        home: 'home',
+        store: 'shop',
+        trades: 'tradeHub',
+        sell: 'sellPortal',
+        account: 'dashboard'
+      };
+      return routes[route] || 'home';
+    }
+
+    function switchView(viewName, updateHistory = true) {
       if ((viewName === 'sellPortal' || viewName === 'dashboard') && !requireSignIn(() => switchView(viewName))) return;
-      const views = ['shop', 'tradeHub', 'sellPortal', 'dashboard'];
+      const views = ['home', 'shop', 'tradeHub', 'sellPortal', 'dashboard'];
       views.forEach(v => {
         const el = document.getElementById(`view-${v}`);
-        const navBtn = document.getElementById(`nav-${v}`);
+        const navBtn = document.getElementById(v === 'home' ? 'nav-home' : `nav-${v}`);
         if (el) el.classList.add('hidden');
         if (navBtn) {
           navBtn.classList.remove('text-cyber-red', 'bg-cyber-red/10', 'border-cyber-red/30');
@@ -116,11 +185,15 @@
       });
 
       const target = document.getElementById(`view-${viewName}`);
-      const activeNav = document.getElementById(`nav-${viewName}`);
-      if (target) target.classList.remove('hidden');
-      if (activeNav) {
-        activeNav.classList.add('text-cyber-red', 'bg-cyber-red/10', 'border-cyber-red/30');
-        activeNav.classList.remove('text-gray-300');
+      if (target) {
+        target.classList.remove('hidden', 'view-transition-in');
+        void target.offsetWidth;
+        target.classList.add('view-transition-in');
+      }
+      const selectedNav = document.getElementById(viewName === 'home' ? 'nav-home' : `nav-${viewName}`);
+      if (selectedNav) {
+        selectedNav.classList.add('text-cyber-red', 'bg-cyber-red/10', 'border-cyber-red/30');
+        selectedNav.classList.remove('text-gray-300');
       }
 
       if (viewName === 'dashboard') {
@@ -131,9 +204,31 @@
       } else if (viewName === 'tradeHub') {
         renderTradesFeed();
       }
+      if (viewName === 'home') renderHomeDashboard();
       if (target) setupScrollReveals(target);
+      if (updateHistory) {
+        const route = { home: 'home', shop: 'store', tradeHub: 'trades', sellPortal: 'sell', dashboard: 'account' }[viewName];
+        if (route && window.location.hash !== `#${route}`) {
+          window.history.pushState(null, '', `#${route}`);
+        }
+      }
 
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function renderHomeDashboard() {
+      const greeting = document.getElementById('homeGreetingName');
+      const storeCount = document.getElementById('homeStoreCount');
+      const tradeCount = document.getElementById('homeTradeCount');
+      const accountStatus = document.getElementById('homeAccountStatus');
+      if (!greeting || !storeCount || !tradeCount || !accountStatus) return;
+
+      greeting.textContent = currentUser && currentUser.name ? `, ${currentUser.name}` : '';
+      storeCount.textContent = String(products.length);
+      tradeCount.textContent = String(currentUser
+        ? trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id).length
+        : 0);
+      accountStatus.textContent = currentUser ? 'Signed in' : 'Guest';
     }
 
     function toggleMobileMenu() {
@@ -147,6 +242,7 @@
       button.textContent = currentUser ? 'LOG OUT' : 'LOG IN';
       button.onclick = currentUser ? logOut : () => openAuthModal('login');
       button.title = currentUser ? `Signed in as ${currentUser.email}` : 'Log in to list, trade, or buy';
+      renderHomeDashboard();
     }
 
     function openAuthModal(mode = 'login') {
@@ -159,6 +255,9 @@
 
     function setAuthMode(mode) {
       authMode = mode;
+      const authError = document.getElementById('authErrorMessage');
+      authError.textContent = '';
+      authError.classList.add('hidden');
       const isRegistration = mode === 'register';
       document.getElementById('authTitle').textContent = isRegistration ? 'CREATE YOUR ACCOUNT' : 'LOG IN TO CONTINUE';
       document.getElementById('authDescription').textContent = isRegistration
@@ -180,6 +279,7 @@
       modal.classList.add('hidden');
       modal.classList.remove('flex');
       document.getElementById('authForm').reset();
+      document.getElementById('authErrorMessage').classList.add('hidden');
       pendingAuthAction = null;
     }
 
@@ -248,6 +348,7 @@
         renderCatalog();
         renderTradesFeed();
         updateDashboardCounts();
+        renderHomeDashboard();
         const action = pendingAuthAction;
         pendingAuthAction = null;
         closeAuthModal();
@@ -255,7 +356,19 @@
         if (action) action();
       } catch (error) {
         console.error('Authentication failed.', error);
-        showToast(`Unable to ${isRegistration ? 'create account' : 'log in'}: ${error.message || 'Please try again.'}`);
+        const invalidLogin = !isRegistration && (
+          error.code === 'invalid_credentials' ||
+          /invalid login credentials|invalid email or password|user not found/i.test(error.message || '')
+        );
+        if (invalidLogin) {
+          const message = 'Email or password is incorrect. Check your credentials and try again.';
+          const authError = document.getElementById('authErrorMessage');
+          authError.textContent = message;
+          authError.classList.remove('hidden');
+          showToast(message);
+        } else {
+          showToast(`Unable to ${isRegistration ? 'create account' : 'log in'}: ${error.message || 'Please try again.'}`);
+        }
       } finally {
         submitButton.disabled = false;
         submitButton.textContent = authMode === 'register' ? 'Create account' : 'Log in';
@@ -271,11 +384,14 @@
       currentUser = {
         id: user.id,
         email: user.email,
-        name: metadataName || user.email.split('@')[0]
+        name: metadataName || user.email.split('@')[0],
+        avatarUrl: '',
+        phone: '',
+        location: ''
       };
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('display_name')
+        .select('display_name, avatar_url')
         .eq('id', user.id)
         .maybeSingle();
       if (error) {
@@ -283,32 +399,66 @@
         showToast(`Profile details are unavailable: ${error.message}`);
         return;
       }
-      if (data && data.display_name) currentUser.name = data.display_name;
+      if (data) {
+        if (data.display_name) currentUser.name = data.display_name;
+        currentUser.avatarUrl = data.avatar_url || '';
+      }
+      const { data: privateData, error: privateError } = await supabaseClient
+        .from('member_private_profiles')
+        .select('phone, location')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (privateError) {
+        console.error('Unable to load private member profile details.', privateError);
+        showToast(`Private profile details are unavailable: ${privateError.message}`);
+        return;
+      }
+      if (privateData) {
+        currentUser.phone = privateData.phone || '';
+        currentUser.location = privateData.location || '';
+      }
     }
 
     async function loadListings() {
-      const { data, error } = await supabaseClient
+      const listingColumns = 'id, seller_id, title, category, condition, price, trade_value, trade_eligible, specs, image, images, rating, stock, description, seller:profiles(display_name)';
+      let { data, error } = await supabaseClient
         .from('listings')
-        .select('id, seller_id, title, category, condition, price, trade_value, trade_eligible, specs, image, rating, stock, description, seller:profiles(display_name)')
+        .select(listingColumns)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
+      if (error && error.code === '42703' && error.message.includes('listings.images')) {
+        console.warn('Product photo galleries require the latest supabase-setup.sql configuration.');
+        ({ data, error } = await supabaseClient
+          .from('listings')
+          .select(listingColumns.replace(', images', ''))
+          .eq('is_active', true)
+          .order('created_at', { ascending: false }));
+      }
       if (error) throw error;
-      products = (data || []).map(listing => ({
-        id: listing.id,
-        sellerId: listing.seller_id,
-        title: listing.title,
-        category: listing.category,
-        condition: listing.condition,
-        price: Number(listing.price),
-        tradeValue: Number(listing.trade_value),
-        tradeEligible: listing.trade_eligible,
-        specs: listing.specs,
-        image: safeImageUrl(listing.image),
-        rating: Number(listing.rating),
-        stock: listing.stock,
-        description: listing.description,
-        sellerName: listing.seller && listing.seller.display_name
-      }));
+      products = (data || []).map(listing => {
+        const image = safeImageUrl(listing.image);
+        const images = Array.isArray(listing.images)
+          ? listing.images.map(safeImageUrl).filter(Boolean)
+          : [];
+        if (image && !images.includes(image)) images.unshift(image);
+        return {
+          id: listing.id,
+          sellerId: listing.seller_id,
+          title: listing.title,
+          category: listing.category,
+          condition: listing.condition,
+          price: Number(listing.price),
+          tradeValue: Number(listing.trade_value),
+          tradeEligible: listing.trade_eligible,
+          specs: listing.specs,
+          image: images[0] || image,
+          images,
+          rating: Number(listing.rating),
+          stock: listing.stock,
+          description: listing.description,
+          sellerName: listing.seller && listing.seller.display_name
+        };
+      });
       renderCatalog();
       populateTargetDeviceDropdown();
       updateDashboardCounts();
@@ -361,12 +511,16 @@
       updateAuthButton();
       renderCatalog();
       renderTradesFeed();
-      switchView('shop');
+      renderHomeDashboard();
+      switchView('home');
       showToast('You have been logged out.');
     }
 
     function scrollToCatalog() {
-      document.getElementById('catalogSection').scrollIntoView({ behavior: 'smooth' });
+      switchView('shop');
+      window.requestAnimationFrame(() => {
+        document.getElementById('catalogSection').scrollIntoView({ behavior: 'smooth' });
+      });
     }
 
     /* ----------------------------------------------------
@@ -490,8 +644,17 @@
             
             <!-- Image & Badges -->
             <div class="relative h-48 bg-cyber-dark overflow-hidden">
-              <img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title)}" loading="lazy" decoding="async" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+              <button type="button" onclick="openProductModal(${jsArgument(p.id)})" aria-label="Quick view ${escapeHtml(p.title)}" class="quick-view-button absolute inset-0 w-full h-full text-left">
+                <img src="${escapeHtml(p.image)}" alt="" loading="lazy" decoding="async" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                <span class="quick-view-label absolute bottom-2 right-2 rounded bg-black/75 px-2.5 py-1 text-[10px] font-mono font-bold uppercase text-white opacity-0 transition group-hover:opacity-100">Quick View</span>
+              </button>
               
+              ${p.images && p.images.length > 1 ? `
+                <span class="absolute bottom-2 right-2 rounded bg-black/75 px-2 py-1 text-[10px] font-mono text-white">
+                  <i class="fa-regular fa-images mr-1"></i>${p.images.length} photos
+                </span>
+              ` : ''}
+
               <!-- Condition Badge -->
               <div class="absolute top-2.5 left-2.5">
                 <span class="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold border ${conditionColor}">
@@ -544,7 +707,7 @@
               <!-- Action Buttons -->
               <div class="grid grid-cols-2 gap-2 pt-1 font-mono text-xs">
                 <button ${isOwnListing ? 'disabled' : ''} onclick="addToCart(${jsArgument(p.id)})" class="w-full py-2 bg-cyber-card hover:bg-cyber-red text-white border border-cyber-border hover:border-cyber-red rounded font-semibold transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
-                  <i class="fa-solid fa-cart-plus mr-1.5 text-xs"></i> ${isOwnListing ? 'Your Listing' : 'Buy Now'}
+                  <i class="fa-solid fa-cart-plus mr-1.5 text-xs"></i> ${isOwnListing ? 'Your Listing' : 'Add to Cart'}
                 </button>
                 <button ${isOwnListing || !p.tradeEligible ? 'disabled' : ''} onclick="openTradeProposalForProduct(${jsArgument(p.id)})" class="w-full py-2 bg-cyber-red/10 hover:bg-cyber-red text-cyber-red hover:text-white border border-cyber-red/40 rounded font-semibold transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
                   <i class="fa-solid fa-arrows-left-right mr-1.5 text-xs"></i> Trade In
@@ -567,13 +730,34 @@
 
       const modal = document.getElementById('productDetailModal');
       const content = document.getElementById('productModalContent');
+      const images = item.images && item.images.length ? item.images : [item.image];
+      activeProductGalleryIndex = 0;
+      activeProductGalleryProductId = item.id;
 
       content.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-3">
-            <div class="h-64 rounded-xl bg-cyber-dark overflow-hidden border border-cyber-border">
-              <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" class="w-full h-full object-cover">
+            <div class="relative h-64 rounded-xl bg-cyber-dark overflow-hidden border border-cyber-border">
+              <img id="productGalleryMainImage" src="${escapeHtml(images[0])}" alt="${escapeHtml(item.title)} photo 1 of ${images.length}" class="w-full h-full object-contain">
+              ${images.length > 1 ? `
+                <button type="button" onclick="changeProductGalleryImage(-1)" aria-label="Previous product photo" class="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/75 px-3 py-2 text-white hover:bg-cyber-red">
+                  <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <button type="button" onclick="changeProductGalleryImage(1)" aria-label="Next product photo" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/75 px-3 py-2 text-white hover:bg-cyber-red">
+                  <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <span id="productGalleryCounter" class="absolute bottom-2 right-2 rounded bg-black/75 px-2 py-1 text-[10px] font-mono text-white">1 / ${images.length}</span>
+              ` : ''}
             </div>
+            ${images.length > 1 ? `
+              <div id="productGalleryThumbnails" class="flex gap-2 overflow-x-auto pb-1">
+                ${images.map((image, index) => `
+                  <button type="button" onclick="changeProductGalleryImage(${index}, true)" aria-label="View product photo ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}" class="product-gallery-thumbnail h-14 w-14 shrink-0 overflow-hidden rounded border ${index === 0 ? 'border-cyber-red' : 'border-cyber-border'}">
+                    <img src="${escapeHtml(image)}" alt="" class="h-full w-full object-cover">
+                  </button>
+                `).join('')}
+              </div>
+            ` : ''}
             <div class="bg-cyber-dark p-3 rounded-lg border border-cyber-border space-y-1 text-xs font-mono">
               <span class="text-cyber-muted block">GUARANTEED AUTHENTICITY</span>
               <p class="text-green-400 font-bold"><i class="fa-solid fa-circle-check mr-1"></i> ZEL Tech Inspection Passed</p>
@@ -625,6 +809,29 @@
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+    }
+
+    function changeProductGalleryImage(direction, selectIndex = false) {
+      const product = products.find(item => item.id === activeProductGalleryProductId);
+      if (!product) return;
+      const images = product.images && product.images.length ? product.images : [product.image];
+      activeProductGalleryIndex = selectIndex
+        ? direction
+        : (activeProductGalleryIndex + direction + images.length) % images.length;
+      const image = document.getElementById('productGalleryMainImage');
+      const counter = document.getElementById('productGalleryCounter');
+      if (image) {
+        image.src = images[activeProductGalleryIndex];
+        image.alt = `${product.title} photo ${activeProductGalleryIndex + 1} of ${images.length}`;
+      }
+      if (counter) counter.textContent = `${activeProductGalleryIndex + 1} / ${images.length}`;
+      document.querySelectorAll('.product-gallery-thumbnail').forEach((thumbnail, index) => {
+        const selected = index === activeProductGalleryIndex;
+        thumbnail.setAttribute('aria-current', String(selected));
+        thumbnail.classList.toggle('border-cyber-red', selected);
+        thumbnail.classList.toggle('border-cyber-border', !selected);
+        if (selected) thumbnail.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
     }
 
     function closeProductModal() {
@@ -1166,6 +1373,51 @@
     /* ----------------------------------------------------
        SELLER PORTAL: LIST NEW DEVICE
     ---------------------------------------------------- */
+    function renderListingImagePreviews() {
+      const container = document.getElementById('listingImagePreviews');
+      if (!container) return;
+      container.innerHTML = selectedListingImages.map((item, index) => `
+        <div class="relative aspect-square overflow-hidden rounded border border-cyber-border">
+          <img src="${escapeHtml(item.previewUrl)}" alt="Selected product photo ${index + 1}" class="h-full w-full object-cover">
+          <button type="button" onclick="removeListingImage(${index})" aria-label="Remove product photo ${index + 1}" class="absolute right-1 top-1 rounded bg-black/80 px-1.5 py-1 text-xs text-white hover:bg-cyber-red">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function handleListingImageSelection(event) {
+      const input = event.target;
+      const files = Array.from(input.files || []);
+      input.value = '';
+      let rejected = 0;
+      for (const file of files) {
+        if (selectedListingImages.length >= 6) {
+          rejected += 1;
+          continue;
+        }
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+          rejected += 1;
+          continue;
+        }
+        selectedListingImages.push({ file, previewUrl: URL.createObjectURL(file) });
+      }
+      renderListingImagePreviews();
+      if (rejected) showToast('Some photos were skipped. Upload up to 6 JPEG, PNG, or WebP images, each no larger than 5 MB.');
+    }
+
+    function removeListingImage(index) {
+      const [removed] = selectedListingImages.splice(index, 1);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      renderListingImagePreviews();
+    }
+
+    function clearListingImageSelection() {
+      selectedListingImages.forEach(item => URL.revokeObjectURL(item.previewUrl));
+      selectedListingImages = [];
+      renderListingImagePreviews();
+    }
+
     function insertSampleImage() {
       const samples = [
         "https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=700&q=80",
@@ -1196,9 +1448,38 @@
         return;
       }
 
-      if (!imgUrl) {
-        imgUrl = "https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=700&q=80";
+      if (!selectedListingImages.length && !imgUrl) {
+        imgUrl = 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=700&q=80';
       }
+
+      const uploadedImageUrls = [];
+      const uploadedImagePaths = [];
+      try {
+        for (const [index, item] of selectedListingImages.entries()) {
+          const extensionByType = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+          const filePath = `${currentUser.id}/${Date.now()}-${index}-${Math.random().toString(36).slice(2)}.${extensionByType[item.file.type]}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from('product-images')
+            .upload(filePath, item.file, { cacheControl: '3600', upsert: false, contentType: item.file.type });
+          if (uploadError) throw uploadError;
+          uploadedImagePaths.push(filePath);
+          const { data: publicUrlData } = supabaseClient.storage.from('product-images').getPublicUrl(filePath);
+          const imageUrl = safeImageUrl(publicUrlData.publicUrl);
+          if (!imageUrl) throw new Error('Supabase returned an invalid product photo URL.');
+          uploadedImageUrls.push(imageUrl);
+        }
+      } catch (error) {
+        console.error('Unable to upload product photos.', error);
+        if (uploadedImagePaths.length) {
+          const { error: cleanupError } = await supabaseClient.storage.from('product-images').remove(uploadedImagePaths);
+          if (cleanupError) console.error('Unable to clean up uploaded product photos.', cleanupError);
+        }
+        showToast(`Unable to upload product photos: ${error.message}`);
+        return;
+      }
+
+      const images = uploadedImageUrls.length ? uploadedImageUrls : [imgUrl];
+      imgUrl = images[0];
 
       const listing = {
         seller_id: currentUser.id,
@@ -1210,6 +1491,7 @@
         trade_eligible: document.getElementById('listAcceptTrades').checked,
         specs: specs,
         image: imgUrl,
+        images: images,
         rating: 5.0,
         stock: 1,
         description: `Seller listing. Specifications: ${specs}.`
@@ -1222,6 +1504,10 @@
         .single();
       if (error) {
         console.error('Unable to create listing.', error);
+        if (uploadedImagePaths.length) {
+          const { error: cleanupError } = await supabaseClient.storage.from('product-images').remove(uploadedImagePaths);
+          if (cleanupError) console.error('Unable to clean up product photos for the failed listing.', cleanupError);
+        }
         showToast(`Unable to create listing: ${error.message}`);
         return;
       }
@@ -1237,6 +1523,7 @@
         tradeEligible: listing.trade_eligible,
         specs,
         image: imgUrl,
+        images,
         rating: 5.0,
         stock: 1,
         description: listing.description,
@@ -1247,6 +1534,7 @@
       persistData();
 
       document.getElementById('sellDeviceForm').reset();
+      clearListingImageSelection();
       showToast(`Device "${title}" successfully listed in catalog!`);
       
       switchView('shop');
@@ -1369,11 +1657,53 @@
       const myTrades = trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id);
       const myOrders = orders.filter(order => order.buyerEmail === currentUser.email);
       const myListings = products.filter(product => product.sellerId === currentUser.id);
+      renderProfileAvatar(currentUser.avatarUrl);
       document.getElementById('profileName').textContent = currentUser.name || 'Member';
       document.getElementById('profileEmail').textContent = currentUser.email;
       document.getElementById('profileNameInput').value = currentUser.name || '';
+      document.getElementById('profilePhone').textContent = currentUser.phone || 'Not provided';
+      document.getElementById('profileLocation').textContent = currentUser.location || 'Not provided';
       document.getElementById('profileActivity').textContent =
         `${myListings.length} listings | ${myTrades.length} trade offers | ${myOrders.length} orders`;
+    }
+
+    function renderProfileAvatar(url) {
+      const avatar = document.querySelector('.profile-avatar');
+      if (!avatar) return;
+      const avatarUrl = String(url || '');
+      const safeUrl = /^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(avatarUrl)
+        ? avatarUrl
+        : safeImageUrl(avatarUrl);
+      avatar.innerHTML = safeUrl
+        ? `<img src="${escapeHtml(safeUrl)}" alt="Profile picture" class="h-full w-full object-cover">`
+        : '<i class="fa-solid fa-user-astronaut"></i>';
+    }
+
+    function previewProfileAvatar(event) {
+      const input = event.currentTarget;
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 3 * 1024 * 1024) {
+        input.value = '';
+        selectedProfileAvatar = null;
+        renderProfileAvatar(currentUser && currentUser.avatarUrl);
+        showToast('Choose a JPEG, PNG, or WebP image under 3 MB.');
+        return;
+      }
+
+      selectedProfileAvatar = file;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (selectedProfileAvatar === file) renderProfileAvatar(String(reader.result || ''));
+      };
+      reader.onerror = () => {
+        if (selectedProfileAvatar !== file) return;
+        selectedProfileAvatar = null;
+        input.value = '';
+        renderProfileAvatar(currentUser && currentUser.avatarUrl);
+        showToast('The selected profile picture could not be previewed.');
+      };
+      reader.readAsDataURL(file);
     }
 
     function setProfileEditMode(isEditing) {
@@ -1381,7 +1711,18 @@
       const editButton = document.getElementById('editProfileButton');
       form.classList.toggle('hidden', !isEditing);
       editButton.classList.toggle('hidden', isEditing);
-      if (isEditing) document.getElementById('profileNameInput').focus();
+      if (isEditing && currentUser) {
+        document.getElementById('profileNameInput').value = currentUser.name || '';
+        document.getElementById('profilePhoneInput').value = currentUser.phone || '';
+        document.getElementById('profileLocationInput').value = currentUser.location || '';
+        document.getElementById('profileAvatarInput').value = '';
+        selectedProfileAvatar = null;
+        document.getElementById('profileNameInput').focus();
+      } else {
+        selectedProfileAvatar = null;
+        document.getElementById('profileAvatarInput').value = '';
+        renderProfileAvatar(currentUser && currentUser.avatarUrl);
+      }
     }
 
     async function saveProfile(event) {
@@ -1392,36 +1733,75 @@
       }
 
       const name = document.getElementById('profileNameInput').value.trim();
+      const phone = document.getElementById('profilePhoneInput').value.trim();
+      const location = document.getElementById('profileLocationInput').value.trim();
       if (!name || name.length > 80) {
         showToast('Enter a display name between 1 and 80 characters.');
+        return;
+      }
+      if (phone.length > 30 || location.length > 120) {
+        showToast('Phone numbers must be 30 characters or less and locations 120 characters or less.');
         return;
       }
 
       const saveButton = document.getElementById('saveProfileButton');
       saveButton.disabled = true;
-      saveButton.textContent = 'Saving...';
+      saveButton.textContent = selectedProfileAvatar ? 'Uploading...' : 'Saving...';
       try {
+        let avatarUrl = currentUser.avatarUrl || '';
+        if (selectedProfileAvatar) {
+          const extension = {
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp'
+          }[selectedProfileAvatar.type];
+          const filePath = `${currentUser.id}/${Date.now()}.${extension}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from('profile-avatars')
+            .upload(filePath, selectedProfileAvatar, {
+              cacheControl: '3600',
+              contentType: selectedProfileAvatar.type,
+              upsert: false
+            });
+          if (uploadError) throw uploadError;
+          avatarUrl = supabaseClient.storage.from('profile-avatars').getPublicUrl(filePath).data.publicUrl;
+          saveButton.textContent = 'Saving...';
+        }
+
         const { data, error } = await supabaseClient
           .from('profiles')
-          .update({ display_name: name })
+          .update({ display_name: name, avatar_url: avatarUrl })
           .eq('id', currentUser.id)
-          .select('display_name')
+          .select('display_name, avatar_url')
           .single();
         if (error) throw error;
+
+        const { data: privateData, error: privateError } = await supabaseClient
+          .from('member_private_profiles')
+          .update({ phone, location })
+          .eq('id', currentUser.id)
+          .select('phone, location')
+          .single();
+        if (privateError) throw privateError;
+
         currentUser.name = data.display_name;
+        currentUser.avatarUrl = data.avatar_url || '';
+        currentUser.phone = privateData.phone || '';
+        currentUser.location = privateData.location || '';
+        selectedProfileAvatar = null;
         products.forEach(product => {
           if (product.sellerId === currentUser.id) product.sellerName = data.display_name;
         });
         renderCatalog();
         renderUserDashboard();
         setProfileEditMode(false);
-        showToast('Profile name updated.');
+        showToast('Profile updated.');
       } catch (error) {
         console.error('Unable to update the member profile.', error);
         showToast(`Unable to update profile: ${error.message || 'Please try again.'}`);
       } finally {
         saveButton.disabled = false;
-        saveButton.textContent = 'Save';
+        saveButton.textContent = 'Save Profile';
       }
     }
 
@@ -1478,6 +1858,7 @@
       document.getElementById('dashOrderCount').innerText = myOrders.length;
       document.getElementById('dashListingCount').innerText = myListings.length;
       document.getElementById('activeTradesBadge').innerText = myTrades.length;
+      renderHomeDashboard();
     }
 
     /* ----------------------------------------------------
@@ -1505,6 +1886,7 @@
     }
 
     document.addEventListener('click', event => {
+      showInteractionLoader();
       const button = event.target.closest('button:not(:disabled)');
       if (!button) return;
 
@@ -1512,4 +1894,24 @@
       void button.offsetWidth;
       button.classList.add('button-pressed');
     });
+
+    ['authEmail', 'authPassword'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        const message = document.getElementById('authErrorMessage');
+        message.textContent = '';
+        message.classList.add('hidden');
+      });
+    });
+
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      document.addEventListener('pointermove', event => {
+        const card = event.target.closest('.tech-card');
+        if (!card) return;
+        const bounds = card.getBoundingClientRect();
+        card.style.setProperty('--spotlight-x', `${event.clientX - bounds.left}px`);
+        card.style.setProperty('--spotlight-y', `${event.clientY - bounds.top}px`);
+      }, { passive: true });
+    }
+
+    window.addEventListener('popstate', () => switchView(getViewFromLocation(), false));
   

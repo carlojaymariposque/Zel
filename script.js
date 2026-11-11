@@ -223,7 +223,10 @@
       const accountStatus = document.getElementById('homeAccountStatus');
       if (!greeting || !storeCount || !tradeCount || !accountStatus) return;
 
-      greeting.textContent = currentUser && currentUser.name ? `, ${currentUser.name}` : '';
+      const greetingName = currentUser && currentUser.name ? `, ${currentUser.name}` : '';
+      greeting.textContent = greetingName;
+      if (greetingName) greeting.dataset.text = greetingName;
+      else delete greeting.dataset.text;
       storeCount.textContent = String(products.length);
       tradeCount.textContent = String(currentUser
         ? trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id).length

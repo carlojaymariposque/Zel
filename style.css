@@ -39,6 +39,39 @@
       text-shadow: -2px 0 #ff1e44;
       animation: glitch-layer-red 5.2s steps(1, end) infinite;
     }
+    .user-name-glitch {
+      position: relative;
+      display: inline-block;
+      color: #ff526d;
+      text-shadow: 0 0 12px rgba(255, 30, 68, .35);
+      animation: user-name-glitch 6s steps(1, end) infinite;
+    }
+    .user-name-glitch::before,
+    .user-name-glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .user-name-glitch::before {
+      color: #43f7ff;
+      text-shadow: 2px 0 #43f7ff;
+      animation: glitch-layer-cyan 6s steps(1, end) infinite;
+    }
+    .user-name-glitch::after {
+      color: #ff1e44;
+      text-shadow: -2px 0 #ff1e44;
+      animation: glitch-layer-red 6s steps(1, end) infinite;
+    }
+    @keyframes user-name-glitch {
+      0%, 91%, 94%, 97%, 100% { transform: none; }
+      92% { transform: translateX(1px) skewX(-1deg); }
+      93% { transform: translateX(-1px); }
+      95% { transform: translateX(2px) skewX(1deg); }
+      96% { transform: translateX(-1px); }
+    }
     @keyframes headline-glitch {
       0%, 91%, 94%, 97%, 100% { transform: none; }
       92% { transform: translateX(1px) skewX(-2deg); }
@@ -787,6 +820,66 @@
       place-items: center;
       transform-style: preserve-3d;
     }
+    .hero-device-node {
+      position: absolute;
+      z-index: 3;
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      color: #ff8293;
+      background: linear-gradient(145deg, rgba(28, 16, 23, .9), rgba(8, 9, 13, .86));
+      border: 1px solid rgba(255, 82, 109, .56);
+      border-radius: 11px;
+      box-shadow: 0 0 18px rgba(255, 30, 68, .2), inset 0 0 12px rgba(255, 30, 68, .08);
+      font-size: 15px;
+      animation: hero-device-float 5s ease-in-out infinite;
+    }
+    .hero-device-node::after {
+      content: "";
+      position: absolute;
+      inset: -5px;
+      border: 1px solid rgba(255, 82, 109, .16);
+      border-radius: 14px;
+      animation: hero-device-pulse 3.2s ease-out infinite;
+    }
+    .hero-device-node-laptop {
+      top: 4%;
+      left: 3%;
+    }
+    .hero-device-node-tablet {
+      top: 43%;
+      left: 1%;
+      color: #ffc0c9;
+      animation-delay: -2.4s;
+    }
+    .hero-device-node-camera {
+      bottom: 4%;
+      left: -8px;
+      animation-delay: -3.6s;
+    }
+    .hero-device-node-gaming {
+      top: 7%;
+      right: 3%;
+      color: #ffc0c9;
+      animation-delay: -1.7s;
+    }
+    .hero-device-node-audio {
+      top: 47%;
+      right: 1%;
+      animation-delay: -3.1s;
+    }
+    .hero-device-node-console {
+      right: -8px;
+      bottom: 4%;
+      color: #ffc0c9;
+      animation-delay: -4.2s;
+    }
+    .hero-device-node-gaming::after { animation-delay: -1s; }
+    .hero-device-node-tablet::after { animation-delay: -1.6s; }
+    .hero-device-node-camera::after { animation-delay: -2.4s; }
+    .hero-device-node-audio::after { animation-delay: -2s; }
+    .hero-device-node-console::after { animation-delay: -2.8s; }
     .phone-assembly {
       position: relative;
       width: 86px;
@@ -1042,6 +1135,14 @@
     }
     @keyframes hero-data-float {
       50% { translate: 0 -7px; }
+    }
+    @keyframes hero-device-float {
+      0%, 100% { translate: 0 0; }
+      50% { translate: 0 -8px; }
+    }
+    @keyframes hero-device-pulse {
+      0%, 100% { opacity: .25; transform: scale(.92); }
+      50% { opacity: .85; transform: scale(1.08); }
     }
     @keyframes hero-signal-ping {
       0% { box-shadow: 0 0 0 0 rgba(255, 30, 68, .55); }

@@ -853,7 +853,7 @@
               <button type="button" class="w-full border border-dashed border-cyber-border hover:border-cyber-red rounded-lg p-4 text-center cursor-pointer bg-cyber-dark" onclick="simulateFileUpload()" aria-controls="tradePhotoInput">
                 <i class="fa-solid fa-camera text-cyber-red text-xl mb-1"></i>
                 <span id="fileUploadLabel" class="block text-[11px] text-gray-300">Click to attach photo or use sample image</span>
-                <span class="block text-[9px] text-cyber-muted mt-0.5">JPEG, PNG accepted (Max 10MB)</span>
+                <span class="block text-[9px] text-cyber-muted mt-0.5">Up to 6 JPEG or PNG photos, 10 MB each</span>
               </button>
             </div>
           </div>
@@ -950,32 +950,27 @@
 
           <!-- Payment Options -->
           <div class="space-y-3 pt-3 border-t border-cyber-border">
-            <h4 class="text-gray-300 font-bold uppercase text-[11px]"><i class="fa-solid fa-credit-card text-cyber-red mr-1"></i> Payment Settlement Mode</h4>
+            <h4 class="text-gray-300 font-bold uppercase text-[11px]"><i class="fa-solid fa-credit-card text-cyber-red mr-1"></i> Payment Method</h4>
             <div class="grid grid-cols-3 gap-2">
               <label class="payment-method p-3 bg-cyber-card rounded border border-cyber-border cursor-pointer flex flex-col items-center justify-center text-center">
-                <input type="radio" name="payMethod" value="card" required class="sr-only">
-                <i class="fa-solid fa-credit-card text-cyber-red mb-1"></i>
-                <span class="text-[10px] text-white font-bold">Credit / Debit</span>
+                <input type="radio" name="payMethod" value="cash_on_delivery" required onchange="updatePaymentInstructions()" class="sr-only">
+                <i class="fa-solid fa-truck-fast text-cyber-red mb-1"></i>
+                <span class="text-[10px] text-white font-bold">Cash on Delivery</span>
               </label>
-              <label class="payment-method p-3 bg-cyber-card rounded border border-cyber-border hover:border-cyber-red cursor-pointer flex flex-col items-center justify-center text-center">
-                <input type="radio" name="payMethod" value="trade_credit" class="sr-only">
-                <i class="fa-solid fa-rotate text-cyber-red mb-1"></i>
-                <span class="text-[10px] text-white font-bold">Trade-In Credit</span>
+              <label class="payment-method p-3 bg-cyber-card rounded border border-cyber-border cursor-pointer flex flex-col items-center justify-center text-center">
+                <input type="radio" name="payMethod" value="online" required onchange="updatePaymentInstructions()" class="sr-only">
+                <i class="fa-solid fa-globe text-cyber-red mb-1"></i>
+                <span class="text-[10px] text-white font-bold">Online Payment</span>
               </label>
-              <label class="payment-method p-3 bg-cyber-card rounded border border-cyber-border hover:border-cyber-red cursor-pointer flex flex-col items-center justify-center text-center">
-                <input type="radio" name="payMethod" value="crypto" class="sr-only">
-                <i class="fa-brands fa-bitcoin text-cyber-red mb-1"></i>
-                <span class="text-[10px] text-white font-bold">Cryptocurrency</span>
+              <label class="payment-method p-3 bg-cyber-card rounded border border-cyber-border cursor-pointer flex flex-col items-center justify-center text-center">
+                <input type="radio" name="payMethod" value="bank_transfer" required onchange="updatePaymentInstructions()" class="sr-only">
+                <i class="fa-solid fa-building-columns text-cyber-red mb-1"></i>
+                <span class="text-[10px] text-white font-bold">Bank Payment</span>
               </label>
             </div>
-
-            <div class="space-y-2 bg-cyber-card p-3 rounded border border-cyber-border">
-              <input type="text" placeholder="Card Number" class="w-full bg-cyber-dark border border-cyber-border rounded p-2 text-white">
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" placeholder="MM / YY" class="bg-cyber-dark border border-cyber-border rounded p-2 text-white">
-                <input type="text" placeholder="CVV" class="bg-cyber-dark border border-cyber-border rounded p-2 text-white">
-              </div>
-            </div>
+            <p id="paymentInstructions" class="rounded border border-cyber-border bg-cyber-card p-3 text-[11px] leading-relaxed text-cyber-muted">
+              Choose a payment method. Online and bank payments are recorded as pending; payment processing is not connected yet.
+            </p>
           </div>
 
           <!-- Checkout Order Total -->

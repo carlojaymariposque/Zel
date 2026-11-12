@@ -618,7 +618,7 @@
                 <input id="profileLocationInput" type="text" maxlength="120" autocomplete="address-level2" class="mt-1 w-full bg-cyber-dark border border-cyber-border rounded-lg p-2 text-sm text-white focus:border-cyber-red focus:outline-none">
               </label>
               <label for="profileAvatarInput" class="text-xs font-mono text-gray-300">
-                Profile picture (JPEG, PNG, or WebP; up to 3 MB)
+                Profile picture (JPEG, PNG, or WebP; up to 3 MB; saves when selected)
                 <input id="profileAvatarInput" type="file" accept="image/jpeg,image/png,image/webp" onchange="previewProfileAvatar(event)" class="mt-1 w-full text-xs text-gray-300 file:mr-3 file:rounded file:border-0 file:bg-cyber-red file:px-3 file:py-2 file:text-white">
               </label>
             </div>
@@ -678,7 +678,7 @@
         </label>
         <label class="block text-xs font-mono text-gray-300">
           Password
-          <input id="authPassword" type="password" required minlength="8" autocomplete="current-password" class="mt-1 w-full bg-cyber-card border border-cyber-border rounded-lg p-2.5 text-sm text-white focus:border-cyber-red focus:outline-none">
+          <input id="authPassword" type="password" required minlength="1" autocomplete="current-password" class="mt-1 w-full bg-cyber-card border border-cyber-border rounded-lg p-2.5 text-sm text-white focus:border-cyber-red focus:outline-none">
         </label>
         <p id="authErrorMessage" class="hidden rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300" role="alert"></p>
         <label id="authConfirmPasswordField" class="hidden text-xs font-mono text-gray-300">

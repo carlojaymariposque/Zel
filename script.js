@@ -48,6 +48,37 @@
       return escapeHtml(JSON.stringify(String(value)));
     }
 
+    function cartStorageKey(userId) {
+      return `cr_cart_${userId}`;
+    }
+
+    function loadCartForUser(userId) {
+      try {
+        const savedCart = JSON.parse(localStorage.getItem(cartStorageKey(userId)) || '[]');
+        if (!Array.isArray(savedCart)) throw new Error('Saved cart data is not a list.');
+        cart = savedCart.filter(item =>
+          item && typeof item.id === 'string' &&
+          Number.isFinite(Number(item.price)) && Number(item.price) >= 0 &&
+          Number.isInteger(Number(item.qty)) && Number(item.qty) > 0
+        ).map(item => ({ ...item, price: Number(item.price), qty: Number(item.qty) }));
+      } catch (error) {
+        console.error('Unable to restore the saved cart.', error);
+        cart = [];
+        localStorage.removeItem(cartStorageKey(userId));
+        showToast('Saved cart data could not be restored and has been cleared.');
+      }
+    }
+
+    function saveCartForCurrentUser() {
+      if (!currentUser) return;
+      try {
+        localStorage.setItem(cartStorageKey(currentUser.id), JSON.stringify(cart));
+      } catch (error) {
+        console.error('Unable to save the cart.', error);
+        showToast('Unable to save your cart on this device.');
+      }
+    }
+
     function safeImageUrl(value) {
       try {
         const url = new URL(value, window.location.href);
@@ -61,6 +92,7 @@
     function persistData() {
       localStorage.setItem('cr_trades', JSON.stringify(trades));
       localStorage.setItem('cr_orders', JSON.stringify(orders));
+      saveCartForCurrentUser();
       updateCartBadges();
       updateDashboardCounts();
       renderHomeDashboard();
@@ -148,6 +180,7 @@
       } finally {
         updateAuthButton();
         renderCatalog();
+        renderCart();
         populateTargetDeviceDropdown();
         updateDashboardCounts();
         renderHomeDashboard();
@@ -271,6 +304,8 @@
       document.getElementById('authConfirmPasswordField').classList.toggle('hidden', !isRegistration);
       document.getElementById('authConfirmPassword').required = isRegistration;
       document.getElementById('authPassword').autocomplete = isRegistration ? 'new-password' : 'current-password';
+      document.getElementById('authPassword').minLength = isRegistration ? 8 : 1;
+      document.getElementById('authConfirmPassword').minLength = isRegistration ? 8 : 0;
       document.getElementById('authSubmitButton').textContent = isRegistration ? 'Create account' : 'Log in';
       document.getElementById('authModeToggle').textContent = isRegistration
         ? 'Already have an account? Log in'
@@ -349,6 +384,7 @@
         setAuthMode('login');
         updateAuthButton();
         renderCatalog();
+        renderCart();
         renderTradesFeed();
         updateDashboardCounts();
         renderHomeDashboard();
@@ -359,9 +395,10 @@
         if (action) action();
       } catch (error) {
         console.error('Authentication failed.', error);
+        const message = error.message || '';
         const invalidLogin = !isRegistration && (
           error.code === 'invalid_credentials' ||
-          /invalid login credentials|invalid email or password|user not found/i.test(error.message || '')
+          /invalid login credentials|invalid email or password|user not found/i.test(message)
         );
         if (invalidLogin) {
           const message = 'Email or password is incorrect. Check your credentials and try again.';
@@ -370,7 +407,15 @@
           authError.classList.remove('hidden');
           showToast(message);
         } else {
-          showToast(`Unable to ${isRegistration ? 'create account' : 'log in'}: ${error.message || 'Please try again.'}`);
+          const detail = /email not confirmed/i.test(message)
+            ? 'Confirm your email using the link we sent, then try logging in again.'
+            : /too many requests|rate limit/i.test(message)
+              ? 'Too many attempts. Wait a few minutes before trying again.'
+              : message || 'Please try again.';
+          const authError = document.getElementById('authErrorMessage');
+          authError.textContent = detail;
+          authError.classList.remove('hidden');
+          showToast(`Unable to ${isRegistration ? 'create account' : 'log in'}: ${detail}`);
         }
       } finally {
         submitButton.disabled = false;
@@ -392,6 +437,7 @@
         phone: '',
         location: ''
       };
+      loadCartForUser(user.id);
       const { data, error } = await supabaseClient
         .from('profiles')
         .select('display_name, avatar_url')
@@ -507,6 +553,7 @@
         showToast(`Unable to log out: ${error.message}`);
         return;
       }
+      saveCartForCurrentUser();
       currentUser = null;
       cart = [];
       persistData();
@@ -1682,7 +1729,7 @@
         : '<i class="fa-solid fa-user-astronaut"></i>';
     }
 
-    function previewProfileAvatar(event) {
+    async function previewProfileAvatar(event) {
       const input = event.currentTarget;
       const file = input.files && input.files[0];
       if (!file) return;
@@ -1707,6 +1754,73 @@
         showToast('The selected profile picture could not be previewed.');
       };
       reader.readAsDataURL(file);
+
+      if (!currentUser || !supabaseClient) {
+        selectedProfileAvatar = null;
+        input.value = '';
+        renderProfileAvatar(currentUser && currentUser.avatarUrl);
+        showToast('Sign in before uploading a profile picture.');
+        return;
+      }
+
+      const userId = currentUser.id;
+      input.disabled = true;
+      const saveButton = document.getElementById('saveProfileButton');
+      saveButton.disabled = true;
+      saveButton.textContent = 'Saving picture...';
+      let uploadedFilePath = '';
+      try {
+        const extension = {
+          'image/jpeg': 'jpg',
+          'image/png': 'png',
+          'image/webp': 'webp'
+        }[file.type];
+        uploadedFilePath = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+        const { error: uploadError } = await supabaseClient.storage
+          .from('profile-avatars')
+          .upload(uploadedFilePath, file, {
+            cacheControl: '3600',
+            contentType: file.type,
+            upsert: false
+          });
+        if (uploadError) throw uploadError;
+
+        const avatarUrl = supabaseClient.storage.from('profile-avatars').getPublicUrl(uploadedFilePath).data.publicUrl;
+        const { data, error } = await supabaseClient
+          .from('profiles')
+          .update({ avatar_url: avatarUrl })
+          .eq('id', userId)
+          .select('avatar_url')
+          .single();
+        if (error) throw error;
+
+        if (currentUser && currentUser.id === userId) currentUser.avatarUrl = data.avatar_url || avatarUrl;
+        selectedProfileAvatar = null;
+        input.value = '';
+        if (currentUser && currentUser.id === userId) renderProfileAvatar(currentUser.avatarUrl);
+        showToast('Profile picture saved. It will remain after refreshing.');
+      } catch (error) {
+        console.error('Unable to save the profile picture.', error);
+        if (uploadedFilePath) {
+          try {
+            const { error: cleanupError } = await supabaseClient.storage.from('profile-avatars').remove([uploadedFilePath]);
+            if (cleanupError) console.error('Unable to clean up the unsaved profile picture.', cleanupError);
+          } catch (cleanupError) {
+            console.error('Unable to clean up the unsaved profile picture.', cleanupError);
+          }
+        }
+        selectedProfileAvatar = null;
+        input.value = '';
+        if (currentUser && currentUser.id === userId) renderProfileAvatar(currentUser.avatarUrl);
+        const setupHint = error.code === '42703' || /bucket.*not found|avatar_url/i.test(error.message || '')
+          ? ' Run the latest supabase-setup.sql in the Supabase SQL Editor.'
+          : '';
+        showToast(`Unable to save profile picture: ${error.message || 'Please try again.'}${setupHint}`);
+      } finally {
+        input.disabled = false;
+        saveButton.disabled = false;
+        saveButton.textContent = 'Save Profile';
+      }
     }
 
     function setProfileEditMode(isEditing) {
@@ -1749,28 +1863,9 @@
 
       const saveButton = document.getElementById('saveProfileButton');
       saveButton.disabled = true;
-      saveButton.textContent = selectedProfileAvatar ? 'Uploading...' : 'Saving...';
+      saveButton.textContent = 'Saving...';
       try {
         let avatarUrl = currentUser.avatarUrl || '';
-        if (selectedProfileAvatar) {
-          const extension = {
-            'image/jpeg': 'jpg',
-            'image/png': 'png',
-            'image/webp': 'webp'
-          }[selectedProfileAvatar.type];
-          const filePath = `${currentUser.id}/${Date.now()}.${extension}`;
-          const { error: uploadError } = await supabaseClient.storage
-            .from('profile-avatars')
-            .upload(filePath, selectedProfileAvatar, {
-              cacheControl: '3600',
-              contentType: selectedProfileAvatar.type,
-              upsert: false
-            });
-          if (uploadError) throw uploadError;
-          avatarUrl = supabaseClient.storage.from('profile-avatars').getPublicUrl(filePath).data.publicUrl;
-          saveButton.textContent = 'Saving...';
-        }
-
         const { data, error } = await supabaseClient
           .from('profiles')
           .update({ display_name: name, avatar_url: avatarUrl })

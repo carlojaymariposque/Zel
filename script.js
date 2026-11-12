@@ -1798,7 +1798,7 @@
         selectedProfileAvatar = null;
         input.value = '';
         if (currentUser && currentUser.id === userId) renderProfileAvatar(currentUser.avatarUrl);
-        showToast('Profile picture saved. It will remain after refreshing.');
+        showToast('Profile picture saved.');
       } catch (error) {
         console.error('Unable to save the profile picture.', error);
         if (uploadedFilePath) {
@@ -1812,7 +1812,7 @@
         selectedProfileAvatar = null;
         input.value = '';
         if (currentUser && currentUser.id === userId) renderProfileAvatar(currentUser.avatarUrl);
-        const setupHint = error.code === '42703' || /bucket.*not found|avatar_url/i.test(error.message || '')
+        const setupHint = error.code === '42703' || /bucket.*not found|avatar_url|row-level security|violates.*policy/i.test(error.message || '')
           ? ' Run the latest supabase-setup.sql in the Supabase SQL Editor.'
           : '';
         showToast(`Unable to save profile picture: ${error.message || 'Please try again.'}${setupHint}`);

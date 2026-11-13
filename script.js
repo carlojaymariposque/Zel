@@ -2,6 +2,7 @@
        APPLICATION STATE
     ---------------------------------------------------- */
     let products = [];
+    let userListings = [];
     let trades = (JSON.parse(localStorage.getItem('cr_trades')) || []).filter(trade => trade.proposerEmail);
     let orders = (JSON.parse(localStorage.getItem('cr_orders')) || []).filter(order => order.buyerEmail);
     let currentUser = null;
@@ -170,6 +171,14 @@
         if (error) throw error;
         if (data.session) await hydrateCurrentUser(data.session.user, getViewFromLocation() === 'admin');
         await loadListings();
+        if (currentUser) {
+          try {
+            await loadUserListings();
+          } catch (error) {
+            console.error('Unable to load the member listings.', error);
+            showToast(`Your listings are unavailable: ${error.message || 'Check the Supabase setup.'}`);
+          }
+        }
         subscribeToListingChanges();
         window.addEventListener('focus', refreshListings);
         document.addEventListener('visibilitychange', () => {
@@ -427,7 +436,7 @@
       try {
         const [usersResult, listingsResult, tradesResult] = await Promise.all([
           supabaseClient.from('profiles').select('id, display_name, created_at').order('created_at', { ascending: false }),
-          supabaseClient.from('listings').select('id, seller_id, title, category, price, stock, is_active, created_at').order('created_at', { ascending: false }),
+          supabaseClient.from('listings').select('id, seller_id, title, category, price, stock, is_active, approval_status, created_at').order('created_at', { ascending: false }),
           supabaseClient.from('trade_offers').select('id, proposer_id, seller_id, target_listing_title, offered_device_name, status, created_at').order('created_at', { ascending: false })
         ]);
         if (usersResult.error) throw usersResult.error;
@@ -449,6 +458,8 @@
     function renderAdminDashboard() {
       document.getElementById('adminUserCount').textContent = String(adminData.users.length);
       document.getElementById('adminListingCount').textContent = String(adminData.listings.length);
+      document.getElementById('adminPendingListingCount').textContent =
+        `${adminData.listings.filter(listing => listing.approval_status === 'pending').length} pending approval`;
       document.getElementById('adminTradeCount').textContent = String(adminData.trades.length);
 
       document.getElementById('adminUsersList').innerHTML = adminData.users.length
@@ -466,16 +477,24 @@
         ? categories.map(category => `<span class="rounded-full border border-cyber-border px-3 py-1 text-[11px] text-gray-300">${escapeHtml(category)}</span>`).join('')
         : '<p class="text-xs text-cyber-muted">No categories in use.</p>';
 
-      document.getElementById('adminListingsList').innerHTML = adminData.listings.length
-        ? adminData.listings.map(listing => `
+      const sortedListings = [...adminData.listings].sort((a, b) =>
+        (a.approval_status === 'pending' ? 0 : 1) - (b.approval_status === 'pending' ? 0 : 1)
+      );
+      document.getElementById('adminListingsList').innerHTML = sortedListings.length
+        ? sortedListings.map(listing => `
           <div class="flex flex-col gap-3 border-b border-cyber-border py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0">
               <p class="break-words font-bold text-white">${escapeHtml(listing.title)}</p>
               <p class="mt-1 text-[10px] text-cyber-muted">${escapeHtml(listing.category)} · ${formatCurrency(listing.price)} · Stock ${Number(listing.stock)}</p>
             </div>
             <div class="flex shrink-0 items-center gap-2">
-              <span class="${listing.is_active ? 'text-emerald-400' : 'text-amber-400'}">${listing.is_active ? 'Active' : 'Hidden'}</span>
-              <button type="button" onclick="setAdminListingActive(${jsArgument(listing.id)}, ${!listing.is_active})" class="rounded border border-cyber-border px-3 py-1.5 text-[10px] text-white hover:border-cyber-red">${listing.is_active ? 'Hide listing' : 'Restore listing'}</button>
+              <span class="${listing.approval_status === 'approved' && listing.is_active ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(listing.approval_status)}${listing.approval_status === 'approved' ? (listing.is_active ? ' · Active' : ' · Hidden') : ''}</span>
+              ${listing.approval_status !== 'approved'
+                ? `<button type="button" onclick="reviewAdminListing(${jsArgument(listing.id)}, 'approved')" class="rounded border border-emerald-500/40 px-3 py-1.5 text-[10px] text-emerald-300 hover:bg-emerald-500/20">Approve</button>`
+                : `<button type="button" onclick="setAdminListingActive(${jsArgument(listing.id)}, ${!listing.is_active})" class="rounded border border-cyber-border px-3 py-1.5 text-[10px] text-white hover:border-cyber-red">${listing.is_active ? 'Hide listing' : 'Restore listing'}</button>`}
+              ${listing.approval_status === 'pending'
+                ? `<button type="button" onclick="reviewAdminListing(${jsArgument(listing.id)}, 'rejected')" class="rounded border border-red-500/40 px-3 py-1.5 text-[10px] text-red-300 hover:bg-red-500/20">Reject</button>`
+                : ''}
             </div>
           </div>
         `).join('')
@@ -519,6 +538,32 @@
       } catch (error) {
         console.error('Unable to update listing visibility.', error);
         showToast(`Unable to update listing: ${error.message || 'Please try again.'}`);
+      }
+    }
+
+    async function reviewAdminListing(listingId, approvalStatus) {
+      if (!currentUser || !currentUser.isAdmin || !['approved', 'rejected'].includes(approvalStatus)) {
+        showToast('Admin access is required to review listings.');
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient
+          .from('listings')
+          .update({
+            approval_status: approvalStatus,
+            is_active: approvalStatus === 'approved'
+          })
+          .eq('id', listingId)
+          .in('approval_status', approvalStatus === 'approved' ? ['pending', 'rejected'] : ['pending'])
+          .select('id')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('This listing has already been reviewed.');
+        await Promise.all([loadAdminDashboard(), loadListings()]);
+        showToast(approvalStatus === 'approved' ? 'Listing approved and published.' : 'Listing rejected.');
+      } catch (error) {
+        console.error('Unable to review listing.', error);
+        showToast(`Unable to review listing: ${error.message || 'Please try again.'}`);
       }
     }
 
@@ -597,6 +642,12 @@
           console.error('Unable to load marketplace listings.', error);
           showToast(`Listings are unavailable: ${error.message || 'Check the Supabase setup.'}`);
         }
+        try {
+          await loadUserListings();
+        } catch (error) {
+          console.error('Unable to load the member listings.', error);
+          showToast(`Your listings are unavailable: ${error.message || 'Check the Supabase setup.'}`);
+        }
         document.getElementById('authForm').reset();
         setAuthMode('login');
         updateAuthButton();
@@ -643,6 +694,7 @@
     async function hydrateCurrentUser(user, verifyAdmin = false) {
       if (!user) {
         currentUser = null;
+        userListings = [];
         return;
       }
       const metadataName = user.user_metadata && user.user_metadata.display_name;
@@ -656,6 +708,7 @@
         isAdmin: false,
         adminRoleError: ''
       };
+      userListings = [];
       loadCartForUser(user.id);
       if (verifyAdmin) {
         const { data: adminRole, error: adminRoleError } = await supabaseClient
@@ -700,12 +753,41 @@
       }
     }
 
+    const listingColumns = 'id, seller_id, title, category, condition, price, trade_value, trade_eligible, specs, image, images, rating, stock, description, approval_status, is_active, seller:profiles(display_name)';
+
+    function mapListingRow(listing) {
+      const image = safeImageUrl(listing.image);
+      const images = Array.isArray(listing.images)
+        ? listing.images.map(safeImageUrl).filter(Boolean)
+        : [];
+      if (image && !images.includes(image)) images.unshift(image);
+      return {
+        id: listing.id,
+        sellerId: listing.seller_id,
+        title: listing.title,
+        category: listing.category,
+        condition: listing.condition,
+        price: Number(listing.price),
+        tradeValue: Number(listing.trade_value),
+        tradeEligible: listing.trade_eligible,
+        specs: listing.specs,
+        image: images[0] || image,
+        images,
+        rating: Number(listing.rating),
+        stock: listing.stock,
+        description: listing.description,
+        approvalStatus: listing.approval_status,
+        isActive: listing.is_active,
+        sellerName: listing.seller && listing.seller.display_name
+      };
+    }
+
     async function loadListings() {
-      const listingColumns = 'id, seller_id, title, category, condition, price, trade_value, trade_eligible, specs, image, images, rating, stock, description, seller:profiles(display_name)';
       let { data, error } = await supabaseClient
         .from('listings')
         .select(listingColumns)
         .eq('is_active', true)
+        .eq('approval_status', 'approved')
         .order('created_at', { ascending: false });
       if (error && error.code === '42703' && error.message.includes('listings.images')) {
         console.warn('Product photo galleries require the latest supabase-setup.sql configuration.');
@@ -713,36 +795,39 @@
           .from('listings')
           .select(listingColumns.replace(', images', ''))
           .eq('is_active', true)
+          .eq('approval_status', 'approved')
           .order('created_at', { ascending: false }));
       }
       if (error) throw error;
-      products = (data || []).map(listing => {
-        const image = safeImageUrl(listing.image);
-        const images = Array.isArray(listing.images)
-          ? listing.images.map(safeImageUrl).filter(Boolean)
-          : [];
-        if (image && !images.includes(image)) images.unshift(image);
-        return {
-          id: listing.id,
-          sellerId: listing.seller_id,
-          title: listing.title,
-          category: listing.category,
-          condition: listing.condition,
-          price: Number(listing.price),
-          tradeValue: Number(listing.trade_value),
-          tradeEligible: listing.trade_eligible,
-          specs: listing.specs,
-          image: images[0] || image,
-          images,
-          rating: Number(listing.rating),
-          stock: listing.stock,
-          description: listing.description,
-          sellerName: listing.seller && listing.seller.display_name
-        };
-      });
+      products = (data || []).map(mapListingRow);
       renderCatalog();
       populateTargetDeviceDropdown();
       updateDashboardCounts();
+    }
+
+    async function loadUserListings() {
+      if (!currentUser || !supabaseClient) {
+        userListings = [];
+        return;
+      }
+      let { data, error } = await supabaseClient
+        .from('listings')
+        .select(listingColumns)
+        .eq('seller_id', currentUser.id)
+        .order('created_at', { ascending: false });
+      if (error && error.code === '42703' && error.message.includes('listings.images')) {
+        ({ data, error } = await supabaseClient
+          .from('listings')
+          .select(listingColumns.replace(', images', ''))
+          .eq('seller_id', currentUser.id)
+          .order('created_at', { ascending: false }));
+      }
+      if (error) throw error;
+      userListings = (data || []).map(mapListingRow);
+      updateDashboardCounts();
+      if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
+        renderUserDashboard();
+      }
     }
 
     function subscribeToListingChanges() {
@@ -767,6 +852,7 @@
       if (!supabaseClient) return;
       if (listingsRefreshPromise) return listingsRefreshPromise;
       listingsRefreshPromise = loadListings()
+        .then(() => currentUser ? loadUserListings() : null)
         .catch(error => {
           console.error('Unable to refresh marketplace listings.', error);
           showToast(`Unable to refresh listings: ${error.message || 'Please try again.'}`);
@@ -787,6 +873,7 @@
       }
       saveCartForCurrentUser();
       currentUser = null;
+      userListings = [];
       cart = [];
       persistData();
       renderCart();
@@ -1776,7 +1863,8 @@
         images: images,
         rating: 5.0,
         stock: 1,
-        description: `Seller listing. Specifications: ${specs}.`
+        description: `Seller listing. Specifications: ${specs}.`,
+        approval_status: 'pending'
       };
 
       const { data, error } = await supabaseClient
@@ -1793,34 +1881,27 @@
         showToast(`Unable to create listing: ${error.message}`);
         return;
       }
-
-      const newProduct = {
-        id: data.id,
-        sellerId: currentUser.id,
-        title,
-        category,
-        condition,
-        price,
-        tradeValue: tradeVal,
-        tradeEligible: listing.trade_eligible,
-        specs,
-        image: imgUrl,
-        images,
-        rating: 5.0,
-        stock: 1,
-        description: listing.description,
-        sellerName: currentUser.name
-      };
-      products = products.filter(product => product.id !== newProduct.id);
-      products.unshift(newProduct);
-      persistData();
+      if (!data) {
+        showToast('The listing was submitted, but its status could not be confirmed. Refresh your account before submitting it again.');
+        return;
+      }
 
       document.getElementById('sellDeviceForm').reset();
       clearListingImageSelection();
-      showToast(`Device "${title}" successfully listed in catalog!`);
-      
-      switchView('shop');
-      renderCatalog();
+      let listingStatusLoaded = true;
+      let listingStatusError = '';
+      try {
+        await loadUserListings();
+      } catch (error) {
+        listingStatusLoaded = false;
+        listingStatusError = error.message || 'Please refresh your account.';
+        console.error('The listing was submitted, but member listings could not refresh.', error);
+      }
+      showToast(listingStatusLoaded
+        ? `Device "${title}" submitted for admin approval. It will appear in the store after approval.`
+        : `Device "${title}" was submitted, but your listing status could not be loaded: ${listingStatusError}`);
+      switchView('dashboard');
+      switchDashTab('mylistings');
     }
 
     /* ----------------------------------------------------
@@ -1910,7 +1991,7 @@
 
       // 3. User Listings
       const userListingsContainer = document.getElementById('userListingsGrid');
-      const myItems = products.filter(product => product.sellerId === currentUser.id);
+      const myItems = userListings;
       if (myItems.length === 0) {
         userListingsContainer.innerHTML = '<p class="col-span-full text-xs text-cyber-muted font-mono py-8 text-center">You have not listed any electronics yet.</p>';
         updateDashboardCounts();
@@ -1923,6 +2004,9 @@
           <div class="flex justify-between text-cyber-muted text-[11px]">
             <span>Price: ${formatCurrency(p.price)}</span>
             <span>${escapeHtml(p.condition)}</span>
+          </div>
+          <div class="text-[11px] ${p.approvalStatus === 'approved' ? 'text-emerald-400' : p.approvalStatus === 'rejected' ? 'text-red-300' : 'text-amber-300'}">
+            ${p.approvalStatus === 'approved' ? (p.isActive ? 'Approved · Live' : 'Approved · Hidden') : p.approvalStatus === 'rejected' ? 'Rejected · Remove and resubmit' : 'Pending admin approval'}
           </div>
           <button onclick="removeListing(${jsArgument(p.id)})" class="w-full py-1 text-cyber-red bg-cyber-dark border border-cyber-border rounded hover:bg-cyber-red hover:text-white transition">
             Remove Listing
@@ -1938,7 +2022,7 @@
       if (!currentUser) return;
       const myTrades = trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id);
       const myOrders = orders.filter(order => order.buyerEmail === currentUser.email);
-      const myListings = products.filter(product => product.sellerId === currentUser.id);
+      const myListings = userListings;
       renderProfileAvatar(currentUser.avatarUrl);
       document.getElementById('profileName').textContent = currentUser.name || 'Member';
       document.getElementById('profileEmail').textContent = currentUser.email;
@@ -2157,7 +2241,7 @@
 
     async function removeListing(prodId) {
       if (!requireSignIn(() => removeListing(prodId))) return;
-      const listing = products.find(product => product.id === prodId);
+      const listing = userListings.find(product => product.id === prodId);
       if (!listing || listing.sellerId !== currentUser.id) {
         showToast('You can only remove your own listings.');
         return;
@@ -2173,9 +2257,10 @@
         return;
       }
       products = products.filter(p => p.id !== prodId);
+      userListings = userListings.filter(item => item.id !== prodId);
       renderCatalog();
       renderUserDashboard();
-      showToast('Listing removed from store.');
+      showToast('Listing removed.');
     }
 
     function updateDashboardCounts() {
@@ -2183,7 +2268,7 @@
         ? trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id)
         : [];
       const myOrders = currentUser ? orders.filter(order => order.buyerEmail === currentUser.email) : [];
-      const myListings = currentUser ? products.filter(product => product.sellerId === currentUser.id) : [];
+      const myListings = currentUser ? userListings : [];
       document.getElementById('dashTradeCount').innerText = myTrades.length;
       document.getElementById('dashOrderCount').innerText = myOrders.length;
       document.getElementById('dashListingCount').innerText = myListings.length;

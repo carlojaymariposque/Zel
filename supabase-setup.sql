@@ -48,6 +48,8 @@ create table if not exists public.listings (
   rating numeric(2, 1) not null default 5.0,
   stock integer not null default 1 check (stock >= 0),
   description text not null default '' check (char_length(description) <= 2100),
+  approval_status text not null default 'approved'
+    check (approval_status in ('pending', 'approved', 'rejected')),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -97,6 +99,10 @@ create index if not exists trade_offers_seller_created_at_idx
 alter table public.listings
   add column if not exists images text[] not null default '{}'
   check (cardinality(images) <= 6);
+
+alter table public.listings
+  add column if not exists approval_status text not null default 'approved'
+  check (approval_status in ('pending', 'approved', 'rejected'));
 
 create index if not exists listings_active_created_at_idx
   on public.listings (created_at desc)
@@ -202,20 +208,32 @@ drop policy if exists "Active listings are public" on public.listings;
 create policy "Active listings are public"
 on public.listings for select
 to anon, authenticated
-using (is_active = true or (select auth.uid()) = seller_id);
+using (
+  (is_active = true and approval_status = 'approved')
+  or (select auth.uid()) = seller_id
+);
 
 drop policy if exists "Users create their own listings" on public.listings;
 create policy "Users create their own listings"
 on public.listings for insert
 to authenticated
-with check ((select auth.uid()) = seller_id);
+with check (
+  (select auth.uid()) = seller_id
+  and approval_status = 'pending'
+);
 
 drop policy if exists "Users update their own listings" on public.listings;
 create policy "Users update their own listings"
 on public.listings for update
 to authenticated
-using ((select auth.uid()) = seller_id)
-with check ((select auth.uid()) = seller_id);
+using (
+  (select auth.uid()) = seller_id
+  and approval_status = 'pending'
+)
+with check (
+  (select auth.uid()) = seller_id
+  and approval_status = 'pending'
+);
 
 drop policy if exists "Users delete their own listings" on public.listings;
 create policy "Users delete their own listings"
@@ -245,6 +263,7 @@ with check (
       and listing.seller_id = trade_offers.seller_id
       and listing.trade_eligible = true
       and listing.is_active = true
+      and listing.approval_status = 'approved'
   )
 );
 

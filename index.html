@@ -654,6 +654,49 @@
 
     </section>
 
+    <section id="view-admin" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-cyber-border pb-4">
+        <div>
+          <p class="text-xs font-mono uppercase tracking-widest text-cyber-red">Restricted access</p>
+          <h2 class="mt-1 text-2xl font-mono font-black text-white">ZEL ADMIN CONSOLE</h2>
+          <p class="mt-1 text-xs text-cyber-muted">Manage the marketplace data secured by your Supabase admin role.</p>
+        </div>
+        <button type="button" onclick="logOut()" class="px-4 py-2 rounded-lg border border-cyber-red/50 text-cyber-red hover:bg-cyber-red hover:text-white font-mono text-xs transition">Admin log out</button>
+      </div>
+      <p class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-200">
+        This console currently lists member profiles (not Supabase Auth emails or account controls), marketplace listings, and rows in the trade-offer table. Storefront orders and trade proposals are currently saved in each visitor's browser, while customer reports, reviews, payment transactions, and editable category/content records have no shared database source yet.
+      </p>
+      <div id="adminErrorMessage" class="hidden rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-xs text-red-300" role="alert"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Member profiles</p><p id="adminUserCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p></div>
+        <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Product listings</p><p id="adminListingCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p></div>
+        <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Database trade offers</p><p id="adminTradeCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p></div>
+      </div>
+      <div role="tablist" aria-label="Admin console sections" class="flex flex-wrap gap-2">
+        <button id="adminTabBtn-users" role="tab" aria-selected="true" onclick="switchAdminTab('users')" class="rounded-lg bg-cyber-red px-4 py-2 text-xs font-mono text-white">Accounts</button>
+        <button id="adminTabBtn-listings" role="tab" aria-selected="false" onclick="switchAdminTab('listings')" class="rounded-lg border border-cyber-border px-4 py-2 text-xs font-mono text-gray-300">Listings &amp; categories</button>
+        <button id="adminTabBtn-trades" role="tab" aria-selected="false" onclick="switchAdminTab('trades')" class="rounded-lg border border-cyber-border px-4 py-2 text-xs font-mono text-gray-300">Trading activity</button>
+      </div>
+      <section id="adminTab-users" role="tabpanel" class="overflow-x-auto rounded-xl border border-cyber-border bg-cyber-card p-4">
+        <h3 class="mb-3 font-mono text-sm font-bold text-white">Member profiles</h3>
+        <div id="adminUsersList" class="space-y-2"></div>
+      </section>
+      <section id="adminTab-listings" role="tabpanel" class="hidden space-y-4">
+        <div class="rounded-xl border border-cyber-border bg-cyber-card p-4">
+          <h3 class="mb-3 font-mono text-sm font-bold text-white">Categories in use</h3>
+          <div id="adminCategoriesList" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-cyber-border bg-cyber-card p-4">
+          <h3 class="mb-3 font-mono text-sm font-bold text-white">Product listings</h3>
+          <div id="adminListingsList" class="space-y-2"></div>
+        </div>
+      </section>
+      <section id="adminTab-trades" role="tabpanel" class="hidden rounded-xl border border-cyber-border bg-cyber-card p-4">
+        <h3 class="mb-3 font-mono text-sm font-bold text-white">Database trade offers</h3>
+        <div id="adminTradesList" class="space-y-2"></div>
+      </section>
+    </section>
+
   </main>
 
   <!-- ==================== MODAL: DEMO ACCOUNT ACCESS ==================== -->
@@ -690,6 +733,25 @@
           Log in
         </button>
         <button id="authModeToggle" type="button" onclick="setAuthMode(authMode === 'login' ? 'register' : 'login')" class="w-full text-center text-xs text-cyber-muted hover:text-white underline underline-offset-4">New here? Create an account</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="adminAuthModal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+    <div class="relative w-full max-w-md rounded-2xl border border-cyber-red/50 bg-cyber-dark p-6 shadow-neon">
+      <button type="button" onclick="closeAdminLogin()" class="absolute right-3 top-3 p-2 text-cyber-muted hover:text-white" aria-label="Close admin login"><i class="fa-solid fa-xmark"></i></button>
+      <p class="text-xs font-mono font-bold uppercase tracking-widest text-cyber-red">Authorized administrators only</p>
+      <h2 class="mt-2 text-2xl font-mono font-black text-white">ADMIN SIGN IN</h2>
+      <p class="mt-2 text-xs leading-relaxed text-cyber-muted">Sign in with the email and password of an administrator account provisioned in Supabase.</p>
+      <form id="adminAuthForm" onsubmit="handleAdminSignIn(event)" class="mt-5 space-y-4">
+        <label class="block text-xs font-mono text-gray-300">Admin email
+          <input id="adminAuthEmail" type="email" required autocomplete="username" class="mt-1 w-full rounded-lg border border-cyber-border bg-cyber-card p-2.5 text-sm text-white focus:border-cyber-red focus:outline-none">
+        </label>
+        <label class="block text-xs font-mono text-gray-300">Password
+          <input id="adminAuthPassword" type="password" required autocomplete="current-password" class="mt-1 w-full rounded-lg border border-cyber-border bg-cyber-card p-2.5 text-sm text-white focus:border-cyber-red focus:outline-none">
+        </label>
+        <p id="adminAuthErrorMessage" class="hidden rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs text-red-300" role="alert"></p>
+        <button id="adminAuthSubmitButton" type="submit" class="w-full rounded-lg bg-cyber-red py-3 font-mono text-xs font-bold uppercase tracking-wider text-white hover:bg-cyber-redGlow">Sign in to admin</button>
       </form>
     </div>
   </div>
@@ -1058,6 +1120,10 @@
           <li><a href="javascript:void(0)" onclick="openTradeProposalModal()" class="hover:text-cyber-red">Condition Appraisal Matrix</a></li>
           <li><a href="javascript:void(0)" onclick="switchView('sellPortal')" class="hover:text-cyber-red">Merchant Listing Portal</a></li>
         </ul>
+      </div>
+
+      <div class="md:col-span-3 border-t border-cyber-border pt-4 text-right">
+        <button type="button" onclick="openAdminLogin()" class="text-[10px] text-cyber-muted underline underline-offset-4 hover:text-cyber-red">Admin sign in</button>
       </div>
 
     </div>

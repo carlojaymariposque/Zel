@@ -534,3 +534,82 @@ begin
   end if;
 end;
 $$;
+
+-- Admin membership is assigned by a project owner, never by a client account.
+create table if not exists public.admin_users (
+  id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+alter table public.admin_users enable row level security;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.admin_users
+    where id = (select auth.uid())
+  );
+$$;
+
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+
+drop policy if exists "Admins can verify their own membership" on public.admin_users;
+create policy "Admins can verify their own membership"
+on public.admin_users for select
+to authenticated
+using (id = (select auth.uid()));
+
+drop policy if exists "Admins read all listings" on public.listings;
+create policy "Admins read all listings"
+on public.listings for select
+to authenticated
+using ((select public.is_admin()));
+
+drop policy if exists "Admins create listings" on public.listings;
+create policy "Admins create listings"
+on public.listings for insert
+to authenticated
+with check ((select public.is_admin()));
+
+drop policy if exists "Admins update listings" on public.listings;
+create policy "Admins update listings"
+on public.listings for update
+to authenticated
+using ((select public.is_admin()))
+with check ((select public.is_admin()));
+
+drop policy if exists "Admins delete listings" on public.listings;
+create policy "Admins delete listings"
+on public.listings for delete
+to authenticated
+using ((select public.is_admin()));
+
+drop policy if exists "Admins read all trade offers" on public.trade_offers;
+create policy "Admins read all trade offers"
+on public.trade_offers for select
+to authenticated
+using ((select public.is_admin()));
+
+drop policy if exists "Admins update trade offer status" on public.trade_offers;
+create policy "Admins update trade offer status"
+on public.trade_offers for update
+to authenticated
+using ((select public.is_admin()))
+with check ((select public.is_admin()));
+
+grant update (status) on public.trade_offers to authenticated;
+revoke all on public.admin_users from anon, authenticated;
+grant select on public.admin_users to authenticated;
+
+-- To grant admin access, first create the account in Supabase Authentication,
+-- then replace the email below and run this as a project owner in SQL Editor:
+-- insert into public.admin_users (id)
+-- select id from auth.users where lower(email) = lower('your-admin-email@example.com')
+-- on conflict (id) do nothing;

@@ -24,6 +24,7 @@
     let tradeOnlyFilter = false;
     let activeProductGalleryIndex = 0;
     let activeProductGalleryProductId = null;
+    let adminData = { users: [], listings: [], trades: [] };
 
     function formatCurrency(amount, minimumFractionDigits = 0) {
       return new Intl.NumberFormat('en-PH', {
@@ -167,7 +168,7 @@
         supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
         const { data, error } = await supabaseClient.auth.getSession();
         if (error) throw error;
-        if (data.session) await hydrateCurrentUser(data.session.user);
+        if (data.session) await hydrateCurrentUser(data.session.user, getViewFromLocation() === 'admin');
         await loadListings();
         subscribeToListingChanges();
         window.addEventListener('focus', refreshListings);
@@ -199,14 +200,20 @@
         store: 'shop',
         trades: 'tradeHub',
         sell: 'sellPortal',
-        account: 'dashboard'
+        account: 'dashboard',
+        admin: 'admin'
       };
       return routes[route] || 'home';
     }
 
     function switchView(viewName, updateHistory = true) {
       if ((viewName === 'sellPortal' || viewName === 'dashboard') && !requireSignIn(() => switchView(viewName))) return;
-      const views = ['home', 'shop', 'tradeHub', 'sellPortal', 'dashboard'];
+      if (viewName === 'admin' && (!currentUser || !currentUser.isAdmin)) {
+        if (updateHistory && window.location.hash !== '#admin') window.history.pushState(null, '', '#admin');
+        openAdminLogin();
+        return;
+      }
+      const views = ['home', 'shop', 'tradeHub', 'sellPortal', 'dashboard', 'admin'];
       views.forEach(v => {
         const el = document.getElementById(`view-${v}`);
         const navBtn = document.getElementById(v === 'home' ? 'nav-home' : `nav-${v}`);
@@ -234,13 +241,15 @@
         target.classList.remove('dashboard-boot');
         void target.offsetWidth;
         target.classList.add('dashboard-boot');
+      } else if (viewName === 'admin') {
+        loadAdminDashboard();
       } else if (viewName === 'tradeHub') {
         renderTradesFeed();
       }
       if (viewName === 'home') renderHomeDashboard();
       if (target) setupScrollReveals(target);
       if (updateHistory) {
-        const route = { home: 'home', shop: 'store', tradeHub: 'trades', sellPortal: 'sell', dashboard: 'account' }[viewName];
+        const route = { home: 'home', shop: 'store', tradeHub: 'trades', sellPortal: 'sell', dashboard: 'account', admin: 'admin' }[viewName];
         if (route && window.location.hash !== `#${route}`) {
           window.history.pushState(null, '', `#${route}`);
         }
@@ -326,6 +335,214 @@
       pendingAuthAction = action || null;
       openAuthModal();
       return false;
+    }
+
+    function openAdminLogin() {
+      if (currentUser && currentUser.isAdmin) {
+        switchView('admin');
+        return;
+      }
+      const modal = document.getElementById('adminAuthModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.getElementById('adminAuthEmail').focus();
+    }
+
+    function closeAdminLogin() {
+      const modal = document.getElementById('adminAuthModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.getElementById('adminAuthForm').reset();
+      document.getElementById('adminAuthErrorMessage').classList.add('hidden');
+    }
+
+    async function handleAdminSignIn(event) {
+      event.preventDefault();
+      if (!supabaseClient) {
+        showAdminLoginError('The account service is unavailable. Please try again later.');
+        return;
+      }
+
+      const button = document.getElementById('adminAuthSubmitButton');
+      const email = document.getElementById('adminAuthEmail').value.trim().toLowerCase();
+      button.disabled = true;
+      button.textContent = 'Verifying admin access...';
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password: document.getElementById('adminAuthPassword').value
+        });
+        if (error) throw error;
+        await hydrateCurrentUser(data.user, true);
+        if (!currentUser || !currentUser.isAdmin) {
+          const { error: signOutError } = await supabaseClient.auth.signOut();
+          if (signOutError) throw signOutError;
+          const roleError = currentUser && currentUser.adminRoleError;
+          currentUser = null;
+          updateAuthButton();
+          throw new Error(roleError
+            ? `Unable to verify admin access (${roleError}). Run the latest supabase-setup.sql and grant an admin role.`
+            : 'This account is not authorized for admin access. Ask a project owner to grant the admin role.');
+        }
+
+        updateAuthButton();
+        closeAdminLogin();
+        switchView('admin');
+        showToast(`Admin session started for ${currentUser.email}.`);
+      } catch (error) {
+        console.error('Admin authentication failed.', error);
+        showAdminLoginError(error.message || 'Unable to verify admin access.');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Sign in to admin';
+      }
+    }
+
+    function showAdminLoginError(message) {
+      const errorElement = document.getElementById('adminAuthErrorMessage');
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
+    }
+
+    function switchAdminTab(tabName) {
+      if (!currentUser || !currentUser.isAdmin) return;
+      const tabs = ['users', 'listings', 'trades'];
+      if (!tabs.includes(tabName)) return;
+      tabs.forEach(tab => {
+        document.getElementById(`adminTab-${tab}`).classList.toggle('hidden', tab !== tabName);
+        const button = document.getElementById(`adminTabBtn-${tab}`);
+        button.setAttribute('aria-selected', String(tab === tabName));
+        button.classList.toggle('bg-cyber-red', tab === tabName);
+        button.classList.toggle('text-white', tab === tabName);
+        button.classList.toggle('border', tab !== tabName);
+        button.classList.toggle('border-cyber-border', tab !== tabName);
+        button.classList.toggle('text-gray-300', tab !== tabName);
+      });
+    }
+
+    async function loadAdminDashboard() {
+      if (!currentUser || !currentUser.isAdmin || !supabaseClient) return;
+      const errorElement = document.getElementById('adminErrorMessage');
+      errorElement.classList.add('hidden');
+      try {
+        const [usersResult, listingsResult, tradesResult] = await Promise.all([
+          supabaseClient.from('profiles').select('id, display_name, created_at').order('created_at', { ascending: false }),
+          supabaseClient.from('listings').select('id, seller_id, title, category, price, stock, is_active, created_at').order('created_at', { ascending: false }),
+          supabaseClient.from('trade_offers').select('id, proposer_id, seller_id, target_listing_title, offered_device_name, status, created_at').order('created_at', { ascending: false })
+        ]);
+        if (usersResult.error) throw usersResult.error;
+        if (listingsResult.error) throw listingsResult.error;
+        if (tradesResult.error) throw tradesResult.error;
+        adminData = {
+          users: usersResult.data || [],
+          listings: listingsResult.data || [],
+          trades: tradesResult.data || []
+        };
+        renderAdminDashboard();
+      } catch (error) {
+        console.error('Unable to load admin data.', error);
+        errorElement.textContent = `Unable to load admin data: ${error.message || 'Check the admin database setup and permissions.'}`;
+        errorElement.classList.remove('hidden');
+      }
+    }
+
+    function renderAdminDashboard() {
+      document.getElementById('adminUserCount').textContent = String(adminData.users.length);
+      document.getElementById('adminListingCount').textContent = String(adminData.listings.length);
+      document.getElementById('adminTradeCount').textContent = String(adminData.trades.length);
+
+      document.getElementById('adminUsersList').innerHTML = adminData.users.length
+        ? adminData.users.map(user => `
+          <div class="flex flex-col gap-1 border-b border-cyber-border py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <span class="font-bold text-white">${escapeHtml(user.display_name || 'ZEL member')}</span>
+            <span class="break-all font-mono text-[10px] text-cyber-muted">${escapeHtml(user.id)}</span>
+            <span class="text-cyber-muted">${new Date(user.created_at).toLocaleDateString()}</span>
+          </div>
+        `).join('')
+        : '<p class="py-4 text-xs text-cyber-muted">No member profiles found.</p>';
+
+      const categories = [...new Set(adminData.listings.map(listing => listing.category).filter(Boolean))].sort();
+      document.getElementById('adminCategoriesList').innerHTML = categories.length
+        ? categories.map(category => `<span class="rounded-full border border-cyber-border px-3 py-1 text-[11px] text-gray-300">${escapeHtml(category)}</span>`).join('')
+        : '<p class="text-xs text-cyber-muted">No categories in use.</p>';
+
+      document.getElementById('adminListingsList').innerHTML = adminData.listings.length
+        ? adminData.listings.map(listing => `
+          <div class="flex flex-col gap-3 border-b border-cyber-border py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="break-words font-bold text-white">${escapeHtml(listing.title)}</p>
+              <p class="mt-1 text-[10px] text-cyber-muted">${escapeHtml(listing.category)} · ${formatCurrency(listing.price)} · Stock ${Number(listing.stock)}</p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="${listing.is_active ? 'text-emerald-400' : 'text-amber-400'}">${listing.is_active ? 'Active' : 'Hidden'}</span>
+              <button type="button" onclick="setAdminListingActive(${jsArgument(listing.id)}, ${!listing.is_active})" class="rounded border border-cyber-border px-3 py-1.5 text-[10px] text-white hover:border-cyber-red">${listing.is_active ? 'Hide listing' : 'Restore listing'}</button>
+            </div>
+          </div>
+        `).join('')
+        : '<p class="py-4 text-xs text-cyber-muted">No product listings found.</p>';
+
+      document.getElementById('adminTradesList').innerHTML = adminData.trades.length
+        ? adminData.trades.map(trade => `
+          <div class="flex flex-col gap-3 border-b border-cyber-border py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+              <p class="break-words font-bold text-white">${escapeHtml(trade.offered_device_name)} for ${escapeHtml(trade.target_listing_title)}</p>
+              <p class="mt-1 break-all text-[10px] text-cyber-muted">Offer ${escapeHtml(trade.id)} · Proposer ${escapeHtml(trade.proposer_id)} · ${new Date(trade.created_at).toLocaleDateString()}</p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="text-cyber-muted">${escapeHtml(trade.status)}</span>
+              ${['pending', 'countered'].includes(trade.status)
+                ? `<button type="button" onclick="declineAdminTrade(${jsArgument(trade.id)})" class="rounded border border-cyber-border px-3 py-1.5 text-[10px] text-white hover:border-cyber-red">Decline offer</button>`
+                : ''}
+            </div>
+          </div>
+        `).join('')
+        : '<p class="py-4 text-xs text-cyber-muted">No database trade offers found.</p>';
+    }
+
+    async function setAdminListingActive(listingId, isActive) {
+      if (!currentUser || !currentUser.isAdmin) {
+        showToast('Admin access is required to manage listings.');
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient
+          .from('listings')
+          .update({ is_active: isActive })
+          .eq('id', listingId)
+          .select('id')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('This listing no longer exists.');
+        await loadAdminDashboard();
+        await loadListings();
+        showToast(isActive ? 'Listing restored to the store.' : 'Listing hidden from the store.');
+      } catch (error) {
+        console.error('Unable to update listing visibility.', error);
+        showToast(`Unable to update listing: ${error.message || 'Please try again.'}`);
+      }
+    }
+
+    async function declineAdminTrade(tradeId) {
+      if (!currentUser || !currentUser.isAdmin) {
+        showToast('Admin access is required to manage trade offers.');
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient
+          .from('trade_offers')
+          .update({ status: 'declined' })
+          .eq('id', tradeId)
+          .in('status', ['pending', 'countered'])
+          .select('id')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('This offer is no longer open.');
+        await loadAdminDashboard();
+        showToast('Trade offer declined.');
+      } catch (error) {
+        console.error('Unable to update trade offer.', error);
+        showToast(`Unable to update trade offer: ${error.message || 'Please try again.'}`);
+      }
     }
 
     async function handleSignIn(event) {
@@ -423,7 +640,7 @@
       }
     }
 
-    async function hydrateCurrentUser(user) {
+    async function hydrateCurrentUser(user, verifyAdmin = false) {
       if (!user) {
         currentUser = null;
         return;
@@ -435,9 +652,24 @@
         name: metadataName || user.email.split('@')[0],
         avatarUrl: '',
         phone: '',
-        location: ''
+        location: '',
+        isAdmin: false,
+        adminRoleError: ''
       };
       loadCartForUser(user.id);
+      if (verifyAdmin) {
+        const { data: adminRole, error: adminRoleError } = await supabaseClient
+          .from('admin_users')
+          .select('id')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (adminRoleError) {
+          console.error('Unable to verify admin privileges.', adminRoleError);
+          currentUser.adminRoleError = adminRoleError.message;
+        } else {
+          currentUser.isAdmin = Boolean(adminRole);
+        }
+      }
       const { data, error } = await supabaseClient
         .from('profiles')
         .select('display_name, avatar_url')

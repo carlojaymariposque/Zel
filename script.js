@@ -11,6 +11,9 @@
     let listingsRefreshPromise = null;
     let listingsRealtimeChannel = null;
     let listingsRealtimeWarningShown = false;
+    let adminOrdersRealtimeChannel = null;
+    let adminOrdersRealtimeWarningShown = false;
+    let adminOrdersRealtimeRefreshTimer = null;
     let scrollRevealObserver = null;
     let cart = [];
     let selectedProfileAvatar = null;
@@ -209,7 +212,10 @@
         supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
         const { data, error } = await supabaseClient.auth.getSession();
         if (error) throw error;
-        if (data.session) await hydrateCurrentUser(data.session.user, getViewFromLocation() === 'admin');
+        if (data.session) {
+          await hydrateCurrentUser(data.session.user, getViewFromLocation() === 'admin');
+          if (currentUser && currentUser.isAdmin) subscribeToAdminOrderChanges();
+        }
         await loadListings();
         if (currentUser) {
           try {
@@ -442,6 +448,7 @@
 
         updateAuthButton();
         closeAdminLogin();
+        subscribeToAdminOrderChanges();
         switchView('admin');
         showToast(`Admin session started for ${currentUser.email}.`);
       } catch (error) {
@@ -510,7 +517,6 @@
       document.getElementById('adminPendingListingCount').textContent =
         `${adminData.listings.filter(listing => listing.approval_status === 'pending').length} pending approval`;
       document.getElementById('adminTradeCount').textContent = String(adminData.trades.length);
-      document.getElementById('adminOrderCount').textContent = String(adminData.orders.length);
 
       document.getElementById('adminUsersList').innerHTML = adminData.users.length
         ? adminData.users.map(user => `
@@ -567,6 +573,11 @@
         `).join('')
         : '<p class="py-4 text-xs text-cyber-muted">No database trade offers found.</p>';
 
+      renderAdminOrders();
+    }
+
+    function renderAdminOrders() {
+      document.getElementById('adminOrderCount').textContent = String(adminData.orders.length);
       document.getElementById('adminOrdersList').innerHTML = adminData.orders.length
         ? adminData.orders.map(order => `
           <article class="space-y-3 border-b border-cyber-border py-4 text-xs">
@@ -602,6 +613,80 @@
           </article>
         `).join('')
         : '<p class="py-4 text-xs text-cyber-muted">No orders have been placed yet.</p>';
+    }
+
+    async function loadAdminOrders() {
+      if (!currentUser || !currentUser.isAdmin || !supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('orders')
+          .select('id, order_number, buyer_email, shipping_name, shipping_email, shipping_address, city, province, postal_code, payment_method, payment_status, subtotal, discount, total, status, tracking_number, created_at, order_items(id, title_snapshot, unit_price, quantity)')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        adminData.orders = data || [];
+        renderAdminOrders();
+      } catch (error) {
+        console.error('Unable to refresh admin orders.', error);
+        const errorElement = document.getElementById('adminErrorMessage');
+        errorElement.textContent = `Unable to refresh admin orders: ${error.message || 'Check the Supabase setup and permissions.'}`;
+        errorElement.classList.remove('hidden');
+      }
+    }
+
+    function subscribeToAdminOrderChanges() {
+      if (!supabaseClient || !currentUser || !currentUser.isAdmin || adminOrdersRealtimeChannel) return;
+      const statusElement = document.getElementById('adminOrdersLiveStatus');
+      if (statusElement) statusElement.textContent = 'Connecting to live updates...';
+      adminOrdersRealtimeChannel = supabaseClient
+        .channel('admin-orders')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        }, scheduleAdminOrdersRefresh)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'order_items'
+        }, scheduleAdminOrdersRefresh)
+        .subscribe((status, error) => {
+          const statusElement = document.getElementById('adminOrdersLiveStatus');
+          if (status === 'SUBSCRIBED') {
+            if (statusElement) statusElement.textContent = 'Live updates active';
+            return;
+          }
+          if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT') return;
+          console.error('Live admin order updates are unavailable.', error || status);
+          if (statusElement) statusElement.textContent = 'Live updates unavailable; use Refresh orders';
+          if (adminOrdersRealtimeWarningShown) return;
+          adminOrdersRealtimeWarningShown = true;
+          showToast('Live order updates are unavailable. Check the Supabase Realtime setup or refresh orders manually.');
+        });
+    }
+
+    function scheduleAdminOrdersRefresh() {
+      if (adminOrdersRealtimeRefreshTimer !== null) {
+        window.clearTimeout(adminOrdersRealtimeRefreshTimer);
+      }
+      adminOrdersRealtimeRefreshTimer = window.setTimeout(() => {
+        adminOrdersRealtimeRefreshTimer = null;
+        void loadAdminOrders();
+      }, 100);
+    }
+
+    async function unsubscribeFromAdminOrderChanges() {
+      if (!supabaseClient || !adminOrdersRealtimeChannel) return;
+      const channel = adminOrdersRealtimeChannel;
+      adminOrdersRealtimeChannel = null;
+      if (adminOrdersRealtimeRefreshTimer !== null) {
+        window.clearTimeout(adminOrdersRealtimeRefreshTimer);
+        adminOrdersRealtimeRefreshTimer = null;
+      }
+      const status = await supabaseClient.removeChannel(channel);
+      if (status !== 'ok') console.error('Unable to remove the admin orders channel.', status);
+      const statusElement = document.getElementById('adminOrdersLiveStatus');
+      if (statusElement) statusElement.textContent = 'Live updates disconnected';
+      adminOrdersRealtimeWarningShown = false;
     }
 
     async function setAdminListingActive(listingId, isActive) {
@@ -963,6 +1048,11 @@
         console.error('Logout failed.', error);
         showToast(`Unable to log out: ${error.message}`);
         return;
+      }
+      try {
+        await unsubscribeFromAdminOrderChanges();
+      } catch (channelError) {
+        console.error('Unable to close the admin orders channel.', channelError);
       }
       saveCartForCurrentUser();
       currentUser = null;

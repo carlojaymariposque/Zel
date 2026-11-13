@@ -923,3 +923,37 @@ revoke all on function public.place_marketplace_order(
 grant execute on function public.place_marketplace_order(
   jsonb, text, text, text, text, text, text, text, text
 ) to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication
+    where pubname = 'supabase_realtime'
+  ) then
+    raise exception 'The supabase_realtime publication is unavailable. Enable Supabase Realtime, then rerun this script.';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'orders'
+  ) then
+    execute 'alter publication supabase_realtime add table public.orders';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'order_items'
+  ) then
+    execute 'alter publication supabase_realtime add table public.order_items';
+  end if;
+end;
+$$;
+
+notify pgrst, 'reload schema';

@@ -699,10 +699,13 @@
       </section>
       <section id="adminTab-orders" role="tabpanel" class="hidden rounded-xl border border-cyber-border bg-cyber-card p-4">
         <div class="mb-3 flex items-center justify-between gap-3">
-          <h3 class="font-mono text-sm font-bold text-white">Customer orders</h3>
+          <div>
+            <h3 class="font-mono text-sm font-bold text-white">Customer orders</h3>
+            <p id="adminOrdersLiveStatus" class="mt-1 text-[10px] text-cyber-muted" role="status" aria-live="polite">Sign in as admin to enable live updates</p>
+          </div>
           <button type="button" onclick="loadAdminDashboard()" class="rounded border border-cyber-border px-3 py-1.5 text-[10px] text-gray-300 hover:border-cyber-red hover:text-white">Refresh orders</button>
         </div>
-        <div id="adminOrdersList" class="space-y-2"></div>
+        <div id="adminOrdersList" class="space-y-2" aria-live="polite"></div>
       </section>
     </section>
 

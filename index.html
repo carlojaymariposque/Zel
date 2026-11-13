@@ -664,18 +664,20 @@
         <button type="button" onclick="logOut()" class="px-4 py-2 rounded-lg border border-cyber-red/50 text-cyber-red hover:bg-cyber-red hover:text-white font-mono text-xs transition">Admin log out</button>
       </div>
       <p class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-200">
-        This console currently lists member profiles (not Supabase Auth emails or account controls), marketplace listings, and rows in the trade-offer table. Storefront orders and trade proposals are currently saved in each visitor's browser, while customer reports, reviews, payment transactions, and editable category/content records have no shared database source yet.
+        New orders are stored in Supabase for admin monitoring. Older orders saved only in browsers are not imported. Payment processing is not connected, and trade proposals, customer reports, reviews, and editable category/content records do not yet have shared database sources.
       </p>
       <div id="adminErrorMessage" class="hidden rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-xs text-red-300" role="alert"></div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Member profiles</p><p id="adminUserCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p></div>
         <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Product listings</p><p id="adminListingCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p><p id="adminPendingListingCount" class="mt-1 text-[10px] text-amber-300">— pending approval</p></div>
         <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Database trade offers</p><p id="adminTradeCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p></div>
+        <div class="rounded-xl border border-cyber-border bg-cyber-card p-4"><p class="text-[10px] uppercase tracking-wider text-cyber-muted">Orders</p><p id="adminOrderCount" class="mt-2 text-2xl font-mono font-bold text-white">—</p></div>
       </div>
       <div role="tablist" aria-label="Admin console sections" class="flex flex-wrap gap-2">
         <button id="adminTabBtn-users" role="tab" aria-selected="true" onclick="switchAdminTab('users')" class="rounded-lg bg-cyber-red px-4 py-2 text-xs font-mono text-white">Accounts</button>
         <button id="adminTabBtn-listings" role="tab" aria-selected="false" onclick="switchAdminTab('listings')" class="rounded-lg border border-cyber-border px-4 py-2 text-xs font-mono text-gray-300">Listings &amp; categories</button>
         <button id="adminTabBtn-trades" role="tab" aria-selected="false" onclick="switchAdminTab('trades')" class="rounded-lg border border-cyber-border px-4 py-2 text-xs font-mono text-gray-300">Trading activity</button>
+        <button id="adminTabBtn-orders" role="tab" aria-selected="false" onclick="switchAdminTab('orders')" class="rounded-lg border border-cyber-border px-4 py-2 text-xs font-mono text-gray-300">Orders</button>
       </div>
       <section id="adminTab-users" role="tabpanel" class="overflow-x-auto rounded-xl border border-cyber-border bg-cyber-card p-4">
         <h3 class="mb-3 font-mono text-sm font-bold text-white">Member profiles</h3>
@@ -694,6 +696,13 @@
       <section id="adminTab-trades" role="tabpanel" class="hidden rounded-xl border border-cyber-border bg-cyber-card p-4">
         <h3 class="mb-3 font-mono text-sm font-bold text-white">Database trade offers</h3>
         <div id="adminTradesList" class="space-y-2"></div>
+      </section>
+      <section id="adminTab-orders" role="tabpanel" class="hidden rounded-xl border border-cyber-border bg-cyber-card p-4">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h3 class="font-mono text-sm font-bold text-white">Customer orders</h3>
+          <button type="button" onclick="loadAdminDashboard()" class="rounded border border-cyber-border px-3 py-1.5 text-[10px] text-gray-300 hover:border-cyber-red hover:text-white">Refresh orders</button>
+        </div>
+        <div id="adminOrdersList" class="space-y-2"></div>
       </section>
     </section>
 
@@ -999,14 +1008,14 @@
           <div class="space-y-3">
             <h4 class="text-gray-300 font-bold uppercase text-[11px]"><i class="fa-solid fa-truck-fast text-cyber-red mr-1"></i> Shipping Address</h4>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="text" required placeholder="Full Name" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
-              <input type="email" required placeholder="Email Address" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
+              <input id="checkoutShippingName" type="text" required maxlength="120" autocomplete="name" placeholder="Full Name" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
+              <input id="checkoutShippingEmail" type="email" required maxlength="254" autocomplete="email" placeholder="Email Address" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
             </div>
-            <input type="text" required placeholder="Street Address" class="w-full bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
+            <input id="checkoutShippingAddress" type="text" required maxlength="300" autocomplete="street-address" placeholder="Street Address" class="w-full bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
             <div class="grid grid-cols-3 gap-3">
-              <input type="text" required placeholder="City" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
-              <input type="text" required placeholder="State / Province" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
-              <input type="text" required placeholder="Postal Code" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
+              <input id="checkoutCity" type="text" required maxlength="100" autocomplete="address-level2" placeholder="City" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
+              <input id="checkoutProvince" type="text" required maxlength="100" autocomplete="address-level1" placeholder="State / Province" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
+              <input id="checkoutPostalCode" type="text" required maxlength="20" autocomplete="postal-code" placeholder="Postal Code" class="bg-cyber-card border border-cyber-border rounded p-2.5 text-white focus:border-cyber-red focus:outline-none">
             </div>
           </div>
 

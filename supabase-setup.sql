@@ -1,4 +1,4 @@
--- Run this script in the Supabase SQL Editor before using ZEL accounts or listings.
+-- Run this script in the Supabase SQL Editor before using ZEL accounts, listings, or orders.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -632,3 +632,294 @@ grant select on public.admin_users to authenticated;
 -- insert into public.admin_users (id)
 -- select id from auth.users where lower(email) = lower('your-admin-email@example.com')
 -- on conflict (id) do nothing;
+
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  order_number text not null unique default (
+    'ORD-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12))
+  ),
+  buyer_id uuid not null references auth.users (id) on delete restrict,
+  buyer_email text not null check (char_length(buyer_email) between 3 and 254),
+  shipping_name text not null check (char_length(shipping_name) between 1 and 120),
+  shipping_email text not null check (char_length(shipping_email) between 3 and 254),
+  shipping_address text not null check (char_length(shipping_address) between 1 and 300),
+  city text not null check (char_length(city) between 1 and 100),
+  province text not null check (char_length(province) between 1 and 100),
+  postal_code text not null check (char_length(postal_code) between 1 and 20),
+  payment_method text not null check (payment_method in (
+    'cash_on_delivery',
+    'online',
+    'bank_transfer'
+  )),
+  payment_status text not null check (payment_status in (
+    'due_on_delivery',
+    'pending',
+    'paid',
+    'failed',
+    'refunded'
+  )),
+  subtotal numeric(12, 2) not null check (subtotal >= 0),
+  discount numeric(12, 2) not null default 0 check (discount >= 0),
+  total numeric(12, 2) not null check (total >= 0),
+  promo_code text not null default '',
+  status text not null default 'placed' check (status in (
+    'placed',
+    'processing',
+    'shipped',
+    'completed',
+    'cancelled'
+  )),
+  tracking_number text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (total = subtotal - discount)
+);
+
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders (id) on delete cascade,
+  listing_id uuid references public.listings (id) on delete set null,
+  title_snapshot text not null check (char_length(title_snapshot) between 1 and 120),
+  image_snapshot text not null default '' check (char_length(image_snapshot) <= 2048),
+  unit_price numeric(10, 2) not null check (unit_price >= 0),
+  quantity integer not null check (quantity between 1 and 100),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists orders_buyer_created_at_idx
+  on public.orders (buyer_id, created_at desc);
+
+create index if not exists order_items_order_id_idx
+  on public.order_items (order_id);
+
+create or replace function public.set_order_updated_at()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists orders_set_updated_at on public.orders;
+create trigger orders_set_updated_at
+before update on public.orders
+for each row execute function public.set_order_updated_at();
+
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
+
+drop policy if exists "Buyers read their own orders" on public.orders;
+create policy "Buyers read their own orders"
+on public.orders for select
+to authenticated
+using (buyer_id = (select auth.uid()));
+
+drop policy if exists "Admins read all orders" on public.orders;
+create policy "Admins read all orders"
+on public.orders for select
+to authenticated
+using ((select public.is_admin()));
+
+drop policy if exists "Buyers and admins read order items" on public.order_items;
+create policy "Buyers and admins read order items"
+on public.order_items for select
+to authenticated
+using (
+  (select public.is_admin())
+  or exists (
+    select 1
+    from public.orders placed_order
+    where placed_order.id = order_items.order_id
+      and placed_order.buyer_id = (select auth.uid())
+  )
+);
+
+revoke all on public.orders, public.order_items from anon, authenticated;
+grant select on public.orders, public.order_items to authenticated;
+
+create or replace function public.place_marketplace_order(
+  p_items jsonb,
+  p_shipping_name text,
+  p_shipping_email text,
+  p_shipping_address text,
+  p_city text,
+  p_province text,
+  p_postal_code text,
+  p_payment_method text,
+  p_promo_code text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_buyer uuid := (select auth.uid());
+  v_buyer_email text;
+  v_order public.orders%rowtype;
+  v_item_count integer;
+  v_unique_item_count integer;
+  v_available_item_count integer;
+  v_subtotal numeric(12, 2);
+  v_discount numeric(12, 2);
+  v_promo_code text := upper(trim(coalesce(p_promo_code, '')));
+begin
+  if v_buyer is null then
+    raise exception 'Sign in before placing an order.';
+  end if;
+  if p_items is null or jsonb_typeof(p_items) is distinct from 'array' then
+    raise exception 'Your cart must contain between 1 and 20 products.';
+  end if;
+  if jsonb_array_length(p_items) not between 1 and 20 then
+    raise exception 'Your cart must contain between 1 and 20 products.';
+  end if;
+  if p_shipping_name is null or char_length(trim(p_shipping_name)) not between 1 and 120
+    or p_shipping_email is null
+    or char_length(trim(p_shipping_email)) not between 3 and 254
+    or trim(p_shipping_email) !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$'
+    or p_shipping_address is null or char_length(trim(p_shipping_address)) not between 1 and 300
+    or p_city is null or char_length(trim(p_city)) not between 1 and 100
+    or p_province is null or char_length(trim(p_province)) not between 1 and 100
+    or p_postal_code is null or char_length(trim(p_postal_code)) not between 1 and 20 then
+    raise exception 'Enter a valid shipping address.';
+  end if;
+  if p_payment_method is null
+    or p_payment_method not in ('cash_on_delivery', 'online', 'bank_transfer') then
+    raise exception 'Choose a valid payment method.';
+  end if;
+  if v_promo_code <> '' and v_promo_code not in ('NEON2025', 'CYBERTRADE') then
+    raise exception 'This promo code is invalid.';
+  end if;
+
+  select email
+  into v_buyer_email
+  from auth.users
+  where id = v_buyer;
+
+  if v_buyer_email is null then
+    raise exception 'Your account email could not be verified.';
+  end if;
+
+  select count(*), count(distinct item.listing_id)
+  into v_item_count, v_unique_item_count
+  from jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer);
+
+  if v_item_count = 0 or v_item_count <> v_unique_item_count
+    or exists (
+      select 1
+      from jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer)
+      where item.listing_id is null
+        or item.quantity is null
+        or item.quantity not between 1 and 100
+    ) then
+    raise exception 'Your cart contains invalid products or quantities.';
+  end if;
+
+  perform listing.id
+  from public.listings listing
+  join jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer)
+    on item.listing_id = listing.id
+  order by listing.id
+  for update of listing;
+
+  select count(*)
+  into v_available_item_count
+  from public.listings listing
+  join jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer)
+    on item.listing_id = listing.id
+  where listing.is_active
+    and listing.approval_status = 'approved'
+    and listing.seller_id <> v_buyer
+    and listing.stock >= item.quantity;
+
+  if v_available_item_count <> v_item_count then
+    raise exception 'One or more products are unavailable or out of stock. Refresh your cart and try again.';
+  end if;
+
+  select coalesce(sum(listing.price * item.quantity), 0)
+  into v_subtotal
+  from public.listings listing
+  join jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer)
+    on item.listing_id = listing.id;
+
+  v_discount := case when v_promo_code <> '' then round(v_subtotal * 0.15, 2) else 0 end;
+
+  insert into public.orders (
+    buyer_id,
+    buyer_email,
+    shipping_name,
+    shipping_email,
+    shipping_address,
+    city,
+    province,
+    postal_code,
+    payment_method,
+    payment_status,
+    subtotal,
+    discount,
+    total,
+    promo_code
+  )
+  values (
+    v_buyer,
+    v_buyer_email,
+    trim(p_shipping_name),
+    lower(trim(p_shipping_email)),
+    trim(p_shipping_address),
+    trim(p_city),
+    trim(p_province),
+    trim(p_postal_code),
+    p_payment_method,
+    case when p_payment_method = 'cash_on_delivery' then 'due_on_delivery' else 'pending' end,
+    v_subtotal,
+    v_discount,
+    v_subtotal - v_discount,
+    v_promo_code
+  )
+  returning * into v_order;
+
+  insert into public.order_items (
+    order_id,
+    listing_id,
+    title_snapshot,
+    image_snapshot,
+    unit_price,
+    quantity
+  )
+  select
+    v_order.id,
+    listing.id,
+    listing.title,
+    listing.image,
+    listing.price,
+    item.quantity
+  from public.listings listing
+  join jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer)
+    on item.listing_id = listing.id;
+
+  update public.listings listing
+  set stock = listing.stock - item.quantity,
+      is_active = case when listing.stock - item.quantity = 0 then false else listing.is_active end
+  from jsonb_to_recordset(p_items) as item(listing_id uuid, quantity integer)
+  where item.listing_id = listing.id;
+
+  return jsonb_build_object(
+    'id', v_order.id,
+    'order_number', v_order.order_number,
+    'total', v_order.total,
+    'status', v_order.status,
+    'payment_status', v_order.payment_status,
+    'created_at', v_order.created_at
+  );
+end;
+$$;
+
+revoke all on function public.place_marketplace_order(
+  jsonb, text, text, text, text, text, text, text, text
+) from public, anon;
+grant execute on function public.place_marketplace_order(
+  jsonb, text, text, text, text, text, text, text, text
+) to authenticated;

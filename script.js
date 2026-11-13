@@ -4,7 +4,8 @@
     let products = [];
     let userListings = [];
     let trades = (JSON.parse(localStorage.getItem('cr_trades')) || []).filter(trade => trade.proposerEmail);
-    let orders = (JSON.parse(localStorage.getItem('cr_orders')) || []).filter(order => order.buyerEmail);
+    let orders = [];
+    let legacyOrders = (JSON.parse(localStorage.getItem('cr_orders')) || []).filter(order => order.buyerEmail);
     let currentUser = null;
     let supabaseClient = null;
     let listingsRefreshPromise = null;
@@ -18,6 +19,7 @@
     let pendingAuthAction = null;
     let authMode = 'login';
     let promoDiscountPercent = 0;
+    let activePromoCode = '';
     let activeFilterCategory = "All";
     let activeSearchTerm = "";
     let activeMaxPrice = 200000;
@@ -25,7 +27,7 @@
     let tradeOnlyFilter = false;
     let activeProductGalleryIndex = 0;
     let activeProductGalleryProductId = null;
-    let adminData = { users: [], listings: [], trades: [] };
+    let adminData = { users: [], listings: [], trades: [], orders: [] };
 
     function formatCurrency(amount, minimumFractionDigits = 0) {
       return new Intl.NumberFormat('en-PH', {
@@ -71,6 +73,45 @@
       }
     }
 
+    function mapOrderRow(order) {
+      return {
+        id: order.order_number,
+        databaseId: order.id,
+        date: new Date(order.created_at).toLocaleDateString(),
+        items: (order.order_items || []).map(item => ({
+          id: item.listing_id || item.title_snapshot,
+          title: item.title_snapshot,
+          price: Number(item.unit_price),
+          qty: item.quantity,
+          image: item.image_snapshot || ''
+        })),
+        total: Number(order.total),
+        status: order.status,
+        trackingNumber: order.tracking_number || 'Not assigned',
+        buyerEmail: order.buyer_email,
+        paymentMethod: order.payment_method,
+        paymentStatus: order.payment_status
+      };
+    }
+
+    async function loadUserOrders() {
+      if (!currentUser || !supabaseClient) {
+        orders = [];
+        return;
+      }
+      const { data, error } = await supabaseClient
+        .from('orders')
+        .select('id, order_number, buyer_email, total, status, tracking_number, payment_method, payment_status, created_at, order_items(id, listing_id, title_snapshot, unit_price, quantity, image_snapshot)')
+        .eq('buyer_id', currentUser.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      orders = (data || []).map(mapOrderRow);
+      updateDashboardCounts();
+      if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
+        renderUserDashboard();
+      }
+    }
+
     function saveCartForCurrentUser() {
       if (!currentUser) return;
       try {
@@ -93,7 +134,6 @@
     // Save states
     function persistData() {
       localStorage.setItem('cr_trades', JSON.stringify(trades));
-      localStorage.setItem('cr_orders', JSON.stringify(orders));
       saveCartForCurrentUser();
       updateCartBadges();
       updateDashboardCounts();
@@ -177,6 +217,12 @@
           } catch (error) {
             console.error('Unable to load the member listings.', error);
             showToast(`Your listings are unavailable: ${error.message || 'Check the Supabase setup.'}`);
+          }
+          try {
+            await loadUserOrders();
+          } catch (error) {
+            console.error('Unable to load the member orders.', error);
+            showToast(`Your orders are unavailable: ${error.message || 'Check the Supabase setup.'}`);
           }
         }
         subscribeToListingChanges();
@@ -415,7 +461,7 @@
 
     function switchAdminTab(tabName) {
       if (!currentUser || !currentUser.isAdmin) return;
-      const tabs = ['users', 'listings', 'trades'];
+      const tabs = ['users', 'listings', 'trades', 'orders'];
       if (!tabs.includes(tabName)) return;
       tabs.forEach(tab => {
         document.getElementById(`adminTab-${tab}`).classList.toggle('hidden', tab !== tabName);
@@ -434,18 +480,21 @@
       const errorElement = document.getElementById('adminErrorMessage');
       errorElement.classList.add('hidden');
       try {
-        const [usersResult, listingsResult, tradesResult] = await Promise.all([
+        const [usersResult, listingsResult, tradesResult, ordersResult] = await Promise.all([
           supabaseClient.from('profiles').select('id, display_name, created_at').order('created_at', { ascending: false }),
           supabaseClient.from('listings').select('id, seller_id, title, category, price, stock, is_active, approval_status, created_at').order('created_at', { ascending: false }),
-          supabaseClient.from('trade_offers').select('id, proposer_id, seller_id, target_listing_title, offered_device_name, status, created_at').order('created_at', { ascending: false })
+          supabaseClient.from('trade_offers').select('id, proposer_id, seller_id, target_listing_title, offered_device_name, status, created_at').order('created_at', { ascending: false }),
+          supabaseClient.from('orders').select('id, order_number, buyer_email, shipping_name, shipping_email, shipping_address, city, province, postal_code, payment_method, payment_status, subtotal, discount, total, status, tracking_number, created_at, order_items(id, title_snapshot, unit_price, quantity)').order('created_at', { ascending: false })
         ]);
         if (usersResult.error) throw usersResult.error;
         if (listingsResult.error) throw listingsResult.error;
         if (tradesResult.error) throw tradesResult.error;
+        if (ordersResult.error) throw ordersResult.error;
         adminData = {
           users: usersResult.data || [],
           listings: listingsResult.data || [],
-          trades: tradesResult.data || []
+          trades: tradesResult.data || [],
+          orders: ordersResult.data || []
         };
         renderAdminDashboard();
       } catch (error) {
@@ -461,6 +510,7 @@
       document.getElementById('adminPendingListingCount').textContent =
         `${adminData.listings.filter(listing => listing.approval_status === 'pending').length} pending approval`;
       document.getElementById('adminTradeCount').textContent = String(adminData.trades.length);
+      document.getElementById('adminOrderCount').textContent = String(adminData.orders.length);
 
       document.getElementById('adminUsersList').innerHTML = adminData.users.length
         ? adminData.users.map(user => `
@@ -516,6 +566,42 @@
           </div>
         `).join('')
         : '<p class="py-4 text-xs text-cyber-muted">No database trade offers found.</p>';
+
+      document.getElementById('adminOrdersList').innerHTML = adminData.orders.length
+        ? adminData.orders.map(order => `
+          <article class="space-y-3 border-b border-cyber-border py-4 text-xs">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p class="font-mono font-bold text-white">${escapeHtml(order.order_number)}</p>
+                <p class="mt-1 text-[10px] text-cyber-muted">${new Date(order.created_at).toLocaleString()}</p>
+              </div>
+              <div class="text-left sm:text-right">
+                <p class="font-bold text-white">${formatCurrency(order.total, 2)}</p>
+                <p class="mt-1 text-[10px] text-cyber-muted">${escapeHtml(order.status)} · ${escapeHtml(order.payment_method.replace(/_/g, ' '))} (${escapeHtml(order.payment_status.replace(/_/g, ' '))})</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div class="rounded-lg bg-cyber-dark p-3">
+                <p class="mb-1 text-[10px] uppercase tracking-wider text-cyber-red">Customer</p>
+                <p class="text-white">${escapeHtml(order.shipping_name)} · ${escapeHtml(order.shipping_email)}</p>
+                <p class="mt-1 text-cyber-muted">${escapeHtml(order.buyer_email)}</p>
+              </div>
+              <div class="rounded-lg bg-cyber-dark p-3">
+                <p class="mb-1 text-[10px] uppercase tracking-wider text-cyber-red">Ship to</p>
+                <p class="text-gray-200">${escapeHtml(order.shipping_address)}, ${escapeHtml(order.city)}, ${escapeHtml(order.province)} ${escapeHtml(order.postal_code)}</p>
+              </div>
+            </div>
+            <ul class="space-y-1 text-[11px] text-gray-300">
+              ${(order.order_items || []).map(item => `
+                <li class="flex justify-between gap-3">
+                  <span>${Number(item.quantity)} × ${escapeHtml(item.title_snapshot)}</span>
+                  <span class="shrink-0">${formatCurrency(Number(item.unit_price) * Number(item.quantity), 2)}</span>
+                </li>
+              `).join('')}
+            </ul>
+          </article>
+        `).join('')
+        : '<p class="py-4 text-xs text-cyber-muted">No orders have been placed yet.</p>';
     }
 
     async function setAdminListingActive(listingId, isActive) {
@@ -648,6 +734,12 @@
           console.error('Unable to load the member listings.', error);
           showToast(`Your listings are unavailable: ${error.message || 'Check the Supabase setup.'}`);
         }
+        try {
+          await loadUserOrders();
+        } catch (error) {
+          console.error('Unable to load the member orders.', error);
+          showToast(`Your orders are unavailable: ${error.message || 'Check the Supabase setup.'}`);
+        }
         document.getElementById('authForm').reset();
         setAuthMode('login');
         updateAuthButton();
@@ -695,6 +787,7 @@
       if (!user) {
         currentUser = null;
         userListings = [];
+        orders = [];
         return;
       }
       const metadataName = user.user_metadata && user.user_metadata.display_name;
@@ -874,6 +967,7 @@
       saveCartForCurrentUser();
       currentUser = null;
       userListings = [];
+      orders = [];
       cart = [];
       persistData();
       renderCart();
@@ -1352,9 +1446,11 @@
         showToast("15% Promo Discount Code applied!");
       } else {
         promoDiscountPercent = 0;
+        activePromoCode = '';
         msg.className = "text-[11px] text-cyber-red block font-mono";
         msg.innerText = "Invalid Promo Code. Try: NEON2025";
       }
+      if (promoDiscountPercent > 0) activePromoCode = input;
       renderCart();
     }
 
@@ -1379,10 +1475,24 @@
       const payable = subtotal - discount;
 
       document.getElementById('checkoutPayableAmount').innerText = formatCurrency(payable, 2);
+      document.getElementById('checkoutShippingName').value = currentUser.name || '';
+      document.getElementById('checkoutShippingEmail').value = currentUser.email || '';
       
       const modal = document.getElementById('checkoutModal');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+    }
+
+    function updatePaymentInstructions() {
+      const selectedMethod = document.querySelector('input[name="payMethod"]:checked');
+      const instructions = document.getElementById('paymentInstructions');
+      if (!selectedMethod) {
+        instructions.textContent = 'Choose a payment method. Online and bank payments are recorded as pending; payment processing is not connected yet.';
+      } else if (selectedMethod.value === 'cash_on_delivery') {
+        instructions.textContent = 'Cash on delivery is recorded as due on delivery. Payment collection is handled outside this site.';
+      } else {
+        instructions.textContent = 'This payment method will be recorded as pending. Payment processing is not connected yet; no online charge or bank transfer is made by this site.';
+      }
     }
 
     function closeCheckoutModal() {
@@ -1391,57 +1501,88 @@
       modal.classList.remove('flex');
     }
 
-    function processCheckout(e) {
+    async function processCheckout(e) {
       e.preventDefault();
       if (!requireSignIn(() => document.getElementById('checkoutForm').requestSubmit())) return;
+      if (!supabaseClient || cart.length === 0) {
+        showToast('Your account service or cart is unavailable. Refresh and try again.');
+        return;
+      }
+
+      const selectedMethod = document.querySelector('input[name="payMethod"]:checked');
+      if (!selectedMethod) {
+        showToast('Choose a payment method to continue.');
+        return;
+      }
 
       const btn = document.getElementById('btnConfirmPay');
+      const originalButtonContent = btn.innerHTML;
       btn.classList.add('button-loading');
       btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin mr-2"></i> Processing Order...`;
       btn.disabled = true;
-
-      setTimeout(() => {
-        const orderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-        const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-        const discount = subtotal * promoDiscountPercent;
-        const total = subtotal - discount;
+      const cartSnapshot = cart.map(item => ({ ...item }));
+      try {
+        const { data, error } = await supabaseClient.rpc('place_marketplace_order', {
+          p_items: cartSnapshot.map(item => ({ listing_id: item.id, quantity: item.qty })),
+          p_shipping_name: document.getElementById('checkoutShippingName').value.trim(),
+          p_shipping_email: document.getElementById('checkoutShippingEmail').value.trim(),
+          p_shipping_address: document.getElementById('checkoutShippingAddress').value.trim(),
+          p_city: document.getElementById('checkoutCity').value.trim(),
+          p_province: document.getElementById('checkoutProvince').value.trim(),
+          p_postal_code: document.getElementById('checkoutPostalCode').value.trim(),
+          p_payment_method: selectedMethod.value,
+          p_promo_code: activePromoCode
+        });
+        if (error) throw error;
+        if (!data || !data.order_number) throw new Error('Supabase did not return the saved order number.');
 
         const newOrder = {
-          id: orderId,
-          date: new Date().toISOString().split('T')[0],
-          items: [...cart],
-          total: total,
-          status: "Order Confirmed",
-          trackingNumber: `CR-FEDEX-${Math.floor(100000000 + Math.random() * 900000000)}`,
-          buyerEmail: currentUser.email
+          id: data.order_number,
+          databaseId: data.id,
+          date: new Date(data.created_at).toLocaleDateString(),
+          items: cartSnapshot,
+          total: Number(data.total),
+          status: data.status,
+          trackingNumber: 'Not assigned',
+          buyerEmail: currentUser.email,
+          paymentMethod: selectedMethod.value,
+          paymentStatus: data.payment_status
         };
-
         orders.unshift(newOrder);
-        cart.forEach(item => {
+        cartSnapshot.forEach(item => {
           const product = products.find(listing => listing.id === item.id);
           if (product) product.stock -= item.qty;
         });
         products = products.filter(product => product.stock > 0);
         cart = [];
         promoDiscountPercent = 0;
+        activePromoCode = '';
+        document.getElementById('promoCodeInput').value = '';
         persistData();
         renderCart();
-
-        btn.innerHTML = `<i class="fa-solid fa-cart-check mr-2"></i> Place Order`;
-        btn.disabled = false;
-        btn.classList.remove('button-loading');
         closeCheckoutModal();
 
-        // Show Invoice Receipt
-        document.getElementById('orderConfirmSubtitle').innerText = `Order #${newOrder.id} has been confirmed.`;
+        try {
+          await Promise.all([loadUserOrders(), loadListings()]);
+        } catch (refreshError) {
+          console.error('The order was saved, but marketplace data could not refresh.', refreshError);
+          showToast(`Order saved, but marketplace data could not refresh: ${refreshError.message || 'Please reload.'}`);
+        }
+
+        const itemCount = cartSnapshot.reduce((sum, item) => sum + item.qty, 0);
+        document.getElementById('orderConfirmSubtitle').innerText = `Order #${newOrder.id} has been saved.`;
         document.getElementById('orderSuccessDetails').innerHTML = `
           <div class="flex justify-between border-b border-cyber-border pb-1">
-            <span>Tracking Number:</span>
-            <span class="text-cyber-red font-bold">${newOrder.trackingNumber}</span>
+            <span>Order Status:</span>
+            <span class="text-cyber-red font-bold">${escapeHtml(newOrder.status)}</span>
           </div>
           <div class="flex justify-between border-b border-cyber-border pb-1">
             <span>Items Purchased:</span>
-            <span>${newOrder.items.length} units</span>
+            <span>${itemCount} units</span>
+          </div>
+          <div class="flex justify-between border-b border-cyber-border pb-1">
+            <span>Payment Status:</span>
+            <span>${escapeHtml(newOrder.paymentStatus.replace(/_/g, ' '))}</span>
           </div>
           <div class="flex justify-between border-b border-cyber-border pb-1">
             <span>Order Total:</span>
@@ -1452,7 +1593,17 @@
         const successModal = document.getElementById('orderSuccessModal');
         successModal.classList.remove('hidden');
         successModal.classList.add('flex');
-      }, 1200);
+      } catch (error) {
+        console.error('Unable to place marketplace order.', error);
+        const setupHint = ['PGRST202', '42883'].includes(error.code)
+          ? ' Run the latest supabase-setup.sql in your Supabase SQL Editor, then try again.'
+          : '';
+        showToast(`Unable to place order: ${error.message || 'Please try again.'}${setupHint}`);
+      } finally {
+        btn.innerHTML = originalButtonContent;
+        btn.disabled = false;
+        btn.classList.remove('button-loading');
+      }
     }
 
     function closeSuccessModal() {
@@ -1959,7 +2110,7 @@
 
       // 2. Orders
       const ordersContainer = document.getElementById('userOrdersList');
-      const myOrders = orders.filter(order => order.buyerEmail === currentUser.email);
+      const myOrders = [...orders, ...legacyOrders].filter(order => order.buyerEmail === currentUser.email);
       if (myOrders.length === 0) {
         ordersContainer.innerHTML = `<p class="text-xs text-cyber-muted font-mono py-8 text-center">No platform orders placed yet.</p>`;
       } else {
@@ -1982,8 +2133,8 @@
               </div>
             </div>
             <div class="pt-2 border-t border-cyber-border/60 flex items-center justify-between text-[11px] text-cyber-muted">
-              <span><i class="fa-solid fa-truck text-cyber-red mr-1"></i> Tracking: ${ord.trackingNumber}</span>
-              <button onclick="showToast('Tracking coordinates synchronized with CyberCourier node.')" class="text-cyber-red hover:underline">Track Live</button>
+              <span><i class="fa-solid fa-truck text-cyber-red mr-1"></i> ${ord.trackingNumber && ord.trackingNumber !== 'Not assigned' ? `Tracking: ${escapeHtml(ord.trackingNumber)}` : 'Tracking not assigned yet'}</span>
+              ${ord.paymentStatus ? `<span class="text-cyber-muted">${escapeHtml(ord.paymentStatus.replace(/_/g, ' '))}</span>` : ''}
             </div>
           </div>
         `).join('');
@@ -2021,7 +2172,7 @@
     function renderUserProfile() {
       if (!currentUser) return;
       const myTrades = trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id);
-      const myOrders = orders.filter(order => order.buyerEmail === currentUser.email);
+      const myOrders = [...orders, ...legacyOrders].filter(order => order.buyerEmail === currentUser.email);
       const myListings = userListings;
       renderProfileAvatar(currentUser.avatarUrl);
       document.getElementById('profileName').textContent = currentUser.name || 'Member';
@@ -2267,7 +2418,9 @@
       const myTrades = currentUser
         ? trades.filter(trade => trade.proposerEmail === currentUser.email || trade.sellerId === currentUser.id)
         : [];
-      const myOrders = currentUser ? orders.filter(order => order.buyerEmail === currentUser.email) : [];
+      const myOrders = currentUser
+        ? [...orders, ...legacyOrders].filter(order => order.buyerEmail === currentUser.email)
+        : [];
       const myListings = currentUser ? userListings : [];
       document.getElementById('dashTradeCount').innerText = myTrades.length;
       document.getElementById('dashOrderCount').innerText = myOrders.length;
